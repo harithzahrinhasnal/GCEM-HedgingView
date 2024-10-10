@@ -292,7 +292,7 @@ with tab2:
             values=[grouped_data['Portfolio'], grouped_data['Trade_Numbers'], grouped_data['Total_Position_Quantity'], grouped_data['Total_Cost'], grouped_data['Weighted_Avg_Net_Premium'],
                     grouped_data['Weighted_Avg_Protection'], grouped_data['Weighted_Avg_Lower_Protection'], grouped_data['Weighted_Avg_Protection_Band']],
             # Applying colors to all cells
-            fill_color=grey_color, # Setting the border color
+             # Setting the border color
             line_color='black', align='center'
         )
     )])
