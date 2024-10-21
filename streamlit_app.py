@@ -151,8 +151,8 @@ tab1, tab2, tab3, tab4 = st.tabs(["Overall Data", "Overview", "MTM", "Report"])
 with tab1:
     # Display PCHP Data
     st.title("PCHP Execution Data")
-    st.write(st.secrets.db_credentials.url)
-
+    st.subheader(st.secrets.db_credentials.url)
+    st.subheader("hi")
     # Create a formatted copy of the filtered DataFrame to preserve the original data
     formatted_df = filtered_df.copy()
 
