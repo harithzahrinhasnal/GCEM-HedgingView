@@ -422,7 +422,7 @@ with tab2:
 
 
         # Add a horizontal line to indicate the targeted value
-        default_targeted_value =  int(121200000 /12)  # Adjust this value according to your targeted value
+        default_targeted_value =  int(120000000 /12)  # Adjust this value according to your targeted value
         targeted_value = [default_targeted_value,default_targeted_value,default_targeted_value,
                           default_targeted_value,default_targeted_value,default_targeted_value,
                           default_targeted_value,default_targeted_value,default_targeted_value,
