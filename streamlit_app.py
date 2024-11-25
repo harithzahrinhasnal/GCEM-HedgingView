@@ -1331,7 +1331,7 @@ with tab3:
 with tabITM:
     st.title("PCHP Data")
     st.title("WORK IN PROGRESS")
-    
+
     # Calculate Total_Position_Quantity and Weighted_Avg_Net_Premium for each portfolio
     filtered_df['Weighted_Avg_Net_Premium'] = (filtered_df['FO.NetPremium'] * filtered_df['FO.Position_Quantity']) / filtered_df.groupby('Portfolio')['FO.Position_Quantity'].transform('sum')
     filtered_df['Weighted_Avg_Protection'] = (filtered_df['FO.StrikePrice1'] * filtered_df['FO.Position_Quantity']) / filtered_df.groupby('Portfolio')['FO.Position_Quantity'].transform('sum')
@@ -1401,7 +1401,7 @@ with tabITM:
     # Display the grouped data with center-aligned values using st.dataframe()
     #st.dataframe(grouped_data, use_container_width=True, hide_index=True)
     
-    st.plotly_chart(fig3, use_container_width=True)
+    st.plotly_chart(fig3, use_container_width=True,key="new")
 
 
 
