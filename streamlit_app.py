@@ -28,10 +28,22 @@ color_discrete_sequence = [
     "#3a1d4c",  # Shade of R118 G063 B152
     "#101e4a",  # Shade of R032 G065 B154
     "#cc8b1c",  # Shade of R253 G185 B036
-    "#8e9c1b"   # Shade of R191 G215 B048
+    "#8e9c1b",  # Shade of R191 G215 B048
+    "#00524f",  # Darker shade of R000 G177 B169
+    "#9a6cb3",  # Lighter shade of R118 G063 B152
+    "#4367c5",  # Lighter shade of R032 G065 B154
+    "#fcd05b",  # Lighter shade of R253 G185 B036
+    "#d0e16a",  # Lighter shade of R191 G215 B048
+    "#005f57"   # Even darker shade of R000 G177 B169
 ]
 
-color_discrete_sequence_2 = ['#00B1A9', '#763F98', '#FF6F61', '#3B5998', '#FFD166', '#06D6A0', '#118AB2', '#073B4C', '#A05195', '#2EC4B6', '#FFB703']
+color_discrete_sequence_2 = [
+    '#00B1A9', '#763F98', '#FF6F61', '#3B5998', '#FFD166', 
+    '#06D6A0', '#118AB2', '#073B4C', '#A05195', '#2EC4B6', 
+    '#FFB703', '#E63946', '#457B9D', '#E9C46A', '#2A9D8F', 
+    '#8D99AE', '#EF476F'
+]
+
 
 
 # Setting Up
