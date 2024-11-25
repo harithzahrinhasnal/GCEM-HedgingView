@@ -1357,17 +1357,15 @@ with tabITM:
     Actual_Average_Brent = pd.read_excel("PCHP Data.xlsx", "Actual_Average_Brent")
     st.dataframe(Actual_Average_Brent)
 
-    # Add the "Actual" columns
-    for month in months:
-        ITM_df[f"Actual {month}"] = None
-
-    # Iterate over each row to fill the "Actual" columns
+    # Iterate over each row in the dataframe
     for idx, row in ITM_df.iterrows():
+        fiscal_year = row["Year"]  # Get the fiscal year label
         for i, month in enumerate(months):
-            # Update the "Actual" column for the corresponding fiscal year and month
-            ITM_df.at[idx, f"Actual {month}"] = row[month]
+            # For each month, update the "Actual" column with the corresponding value
+            actual_value = row[month]
+            ITM_df.at[idx, f"Actual {month}"] = actual_value
 
-    # Display the updated dataframe with streamlit
+
     st.dataframe(ITM_df)
 
 
