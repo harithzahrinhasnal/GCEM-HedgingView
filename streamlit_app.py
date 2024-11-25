@@ -244,7 +244,7 @@ with tab2:
         f.write(image)
 
     # Display the Plotly chart
-    st.plotly_chart(fig_Brent, use_container_width=True, height=400)
+    st.plotly_chart(fig_Brent, use_container_width=True, height=400,key='1')
 
 
 
@@ -317,7 +317,7 @@ with tab2:
     # Display the grouped data with center-aligned values using st.dataframe()
     #st.dataframe(grouped_data, use_container_width=True, hide_index=True)
     
-    st.plotly_chart(fig3, use_container_width=True)
+    st.plotly_chart(fig3, use_container_width=True,key="2")
 
      # Convert the chart to an image with higher resolution
     image = fig3.to_image(format="png", width=1200, height=250, scale=2.0)
