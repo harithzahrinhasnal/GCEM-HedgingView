@@ -1405,43 +1405,7 @@ with tabITM:
 
     st.subheader("Counterparty Monthly Volume Executed")
 
-    filtered_df = ITM_df
-    # Reshape the data to have 'Month' as a column and corresponding values
-    df_melted = pd.melt(filtered_df, id_vars=['FO.Acronym'], value_vars=['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'],
-                        var_name='Month', value_name='Value')
-
-    # Define the correct order of months
-    month_order = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
-
-    # Convert 'Month' to a categorical data type with the correct order
-    df_melted['Month'] = pd.Categorical(df_melted['Month'], categories=month_order, ordered=True)
-
-    # Group by Portfolio, Month, and Value type (Quantity or Premium) and sum the values
-    df_grouped = df_melted.groupby(['FO.Acronym', 'Month']).sum().reset_index()
-
-    fig_quantity_ITM = go.Figure()
-
-    for i, counterparty in enumerate(df_grouped['FO.Acronym'].unique()):
-        df_counterparty = df_grouped[df_grouped['FO.Acronym'] == counterparty]
-        fig_quantity.add_trace(go.Bar(
-            x=df_counterparty['Month'],
-            y=df_counterparty['Value'],
-            name=counterparty,
-            marker_color=color_discrete_sequence[i % len(color_discrete_sequence_2)],
-            text=df_counterparty['Value'],  # Use y-values as text
-            textposition='inside',
-            texttemplate='%{text:.2s}',
-        ))
-
-    fig_quantity_ITM.update_layout(
-        title='Quantity Comparison by Counterparty for Each Month',
-        xaxis_title='Month',
-        yaxis_title='Quantity',
-        barmode='stack' 
-    )
-    
-    
-    st.plotly_chart(fig_quantity_ITM, use_container_width=True, height=200)
+    st.dataframe(df_melted)
 
 
 
