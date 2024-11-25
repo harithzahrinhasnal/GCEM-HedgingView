@@ -713,7 +713,7 @@ with tab3:
 
         return result_df
 
-    if selected_portfolios == ['FY2025 PCHP'] or selected_portfolios == ['FY2024 PCHP']:
+    if selected_portfolios == ['FY2025 PCHP']:
         # Process the first set of data
         df1 = df_selected_sheet
         df2 = strike_data(st, filtered_df, 'FO.StrikePrice1', 'FO.StrikePrice1')
