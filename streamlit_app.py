@@ -140,7 +140,7 @@ end_date = pd.to_datetime(selected_max)
 filtered_df = filtered_df[(filtered_df['FO.TradeDate'] >= start_date) &
                   (filtered_df['FO.TradeDate'] <= end_date)]
 
-
+ITM_df=filtered_df.copy()
 
 #Title
 
@@ -1404,6 +1404,8 @@ with tabITM:
     st.plotly_chart(fig3, use_container_width=True,key="new")
 
     st.subheader("Counterparty Monthly Volume Executed")
+
+    filtered_df = ITM_df
     # Reshape the data to have 'Month' as a column and corresponding values
     df_melted = pd.melt(filtered_df, id_vars=['FO.Acronym'], value_vars=['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'],
                         var_name='Month', value_name='Value')
