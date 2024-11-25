@@ -1345,6 +1345,14 @@ with tabITM:
     st.title("WORK IN PROGRESS")
     st.subheader("Counterparty Monthly Volume Executed")
 
+    # List of months
+    months = ["January", "February", "March", "April", "May", "June", 
+            "July", "August", "September", "October", "November", "December"]
+
+    # Add "Actual" columns
+    for month in months:
+        ITM_df[f"Actual {month}"] = None
+    
     st.dataframe(ITM_df)
 
 
