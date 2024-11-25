@@ -1355,6 +1355,9 @@ with tabITM:
     
     st.dataframe(ITM_df)
 
+    Actual_Average_Brent = pd.read_excel("PCHP Data.xlsx", "Actual_Average_Brent")
+    st.dataframe(Actual_Average_Brent)
+
 
 
 with tab4:
