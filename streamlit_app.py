@@ -1405,7 +1405,7 @@ with tabITM:
 
     st.subheader("Counterparty Monthly Volume Executed")
 
-    st.dataframe(df_melted)
+    st.dataframe(ITM_df)
 
 
 
