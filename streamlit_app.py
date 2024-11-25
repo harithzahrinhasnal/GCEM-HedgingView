@@ -1354,19 +1354,28 @@ with tabITM:
         ITM_df[f"Actual {month}"] = None
     
 
-    Actual_Average_Brent = pd.read_excel("PCHP Data.xlsx", "Actual_Average_Brent")
-    st.dataframe(Actual_Average_Brent)
+    Actual_Average_Brent_df = pd.read_excel("PCHP Data.xlsx", "Actual_Average_Brent")
+    st.dataframe(Actual_Average_Brent_df)
 
-    # Iterate over each row in the dataframe
-    for idx, row in ITM_df.iterrows():
-        fiscal_year = row["Year"]  # Get the fiscal year label
-        for i, month in enumerate(months):
-            # For each month, update the "Actual" column with the corresponding value
-            actual_value = row[month]
-            ITM_df.at[idx, f"Actual {month}"] = actual_value
+    # Assuming ITM_df and Actual_Average_Brent_df are already defined
 
+    # Create a mapping dictionary from Actual_Average_Brent_df
+    actuals_dict = {}
+    for index, row in Actual_Average_Brent_df.iterrows():
+        actuals_dict[row['Year']] = row.drop('Year').to_dict()
+
+    # Now, populate the 'Actual' columns in ITM_df
+    months = ["January", "February", "March", "April", "May", "June", 
+            "July", "August", "September", "October", "November", "December"]
+
+    for month in months:
+        column_name = f"Actual {month}"
+        ITM_df[column_name] = ITM_df['Portfolio'].apply(
+            lambda x: actuals_dict.get(x, {}).get(month, None)
+        )
 
     st.dataframe(ITM_df)
+
 
 
 
