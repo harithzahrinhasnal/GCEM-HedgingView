@@ -1358,50 +1358,25 @@ with tabITM:
     default_sheet = "Actual_Average_Brent"
     Actual_Average_Brent_df = pd.read_excel(default_file, default_sheet).round(2)
 
-    # Let the user choose between default data or manual input
-    st.write("### Choose Data Source:")
-    data_source = st.radio(
-        "Use default dataset or enter data manually:",
-        ('Default Data', 'Enter Data Manually')
+    # Let the user know they can edit the default dataset
+    st.write("### Edit Data (Optional):")
+    st.write("You can edit the data in the table below. The default data is preloaded.")
+
+    # Editable table with default data preloaded
+    Actual_Average_Brent_df = st.experimental_data_editor(
+        Actual_Average_Brent_df,
+        num_rows="dynamic",
+        column_config={
+            "Year": st.column_config.TextColumn("Year"),
+            **{col: st.column_config.NumberColumn(col, format="%.2f") for col in Actual_Average_Brent_df.columns if col != "Year"}
+        }
     )
-
-    # Function to create an empty DataFrame with appropriate columns
-    def create_empty_dataframe():
-        months = ["Year", "January", "February", "March", "April", "May", "June",
-                "July", "August", "September", "October", "November", "December"]
-        return pd.DataFrame(columns=months)
-
-    if data_source == 'Default Data':
-        st.write("Using the default dataset.")
-    else:
-        st.write("Enter data for each year and month:")
-        # Create an empty DataFrame to collect input
-        Actual_Average_Brent_df = create_empty_dataframe()
-
-        # Form for manual data entry
-        with st.form("manual_data_entry"):
-            for i in range(5):  # Allow input for up to 5 years (adjust as needed)
-                cols = st.columns(13)  # 12 months + Year column
-                row = []
-                for j, col in enumerate(cols):
-                    if j == 0:
-                        year = col.text_input(f"Year {i+1}", value=f"FY202{i+1} PCHP")
-                        row.append(year)
-                    else:
-                        month_value = col.number_input(f"{cols[j].label}", key=f"{i}_{j}", step=0.01)
-                        row.append(month_value)
-                Actual_Average_Brent_df.loc[i] = row
-            
-            # Submit button
-            submitted = st.form_submit_button("Submit")
-
-        if not submitted:
-            st.warning("Please fill out the form and submit.")
 
     # Ensure the DataFrame is rounded to two decimal places
     Actual_Average_Brent_df = Actual_Average_Brent_df.round(2)
 
-    # Display the DataFrame
+    # Display the final DataFrame
+    st.write("### Final Data:")
     st.dataframe(Actual_Average_Brent_df, use_container_width=True)
 
 
