@@ -1378,6 +1378,7 @@ with tabITM:
         )
 
     st.dataframe(ITM_df)
+    st.write(df.columns)
 
     # Updated list of months with _ITM
     months_ITM = ["January_ITM", "February_ITM", "March_ITM", "April_ITM", "May_ITM", "June_ITM",
