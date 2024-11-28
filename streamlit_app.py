@@ -1444,6 +1444,12 @@ with tabITM:
     # Fill NaN values with 0 (optional)
     pivot_df = pivot_df.fillna(0)
 
+    # Add a "Total" column for each row (horizontal sum)
+    pivot_df['Total'] = pivot_df.sum(axis=1)
+
+    # Add a "Total" row for each column (vertical sum)
+    pivot_df.loc['Total'] = pivot_df.sum()
+
     # Display the pivot table in Streamlit
     st.dataframe(pivot_df, use_container_width=True)
 
