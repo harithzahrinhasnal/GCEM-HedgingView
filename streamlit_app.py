@@ -1442,7 +1442,7 @@ with tabITM:
                 x='Month', 
                 y='Value', 
                 color='FO.Acronym', 
-                title='Monthly ITM Distribution by FO.Acronym',
+                title='Monthly ITM Distribution by Counterparty',
                 labels={'Month': 'Month', 'Value': 'ITM Value', 'FO.Acronym': 'Acronym'},
                 barmode='stack',
                 category_orders={'Month': month_order})  # Enforce custom month order
