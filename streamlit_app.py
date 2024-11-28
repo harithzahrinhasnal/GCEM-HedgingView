@@ -1390,6 +1390,16 @@ with tabITM:
         
         ITM_df[month] = ((ITM_df[actual_month] < ITM_df['FO.StrikePrice1']).astype(int) * (ITM_df['FO.StrikePrice1'] - ITM_df[actual_month]) * ITM_df[month_value])
 
+    # List of columns to remove
+    columns_to_remove = [
+        'Unnamed: 32', 'O.January', 'O.February', 'O.March', 'O.April', 'O.May', 
+        'O.June', 'O.July', 'O.August', 'O.September', 'O.October', 'O.November', 
+        'O.December', 'Total Outstanding'
+    ]
+
+    # Remove the columns from ITM_df
+    ITM_df = ITM_df.drop(columns=columns_to_remove, errors='ignore')
+
     st.dataframe(ITM_df)
 
 
