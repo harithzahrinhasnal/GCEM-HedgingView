@@ -1375,8 +1375,6 @@ with tabITM:
     # Ensure the DataFrame is rounded to two decimal places
     Actual_Average_Brent_df = Actual_Average_Brent_df.round(2)
 
-    # Display the final DataFrame
-    st.write("### Final Data:")
     st.dataframe(Actual_Average_Brent_df, use_container_width=True)
 
     # Create a mapping dictionary from Actual_Average_Brent_df
