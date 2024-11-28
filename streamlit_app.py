@@ -1377,8 +1377,7 @@ with tabITM:
             lambda x: actuals_dict.get(x, {}).get(month, None)
         )
 
-    st.dataframe(ITM_df)
-    st.write(df.columns)
+    st.write(ITM_df.columns)
 
     # Updated list of months with _ITM
     months_ITM = ["January_ITM", "February_ITM", "March_ITM", "April_ITM", "May_ITM", "June_ITM",
@@ -1389,7 +1388,7 @@ with tabITM:
         actual_month = 'Actual ' + month.split('_')[0]
         month_value = month.split('_')[0]
         
-        df[month] = ((df[actual_month] < df['FO.StrikePrice1']).astype(int) * (df['FO.StrikePrice1'] - df[actual_month]) * df[month_value])
+        ITM_df[month] = ((ITM_df[actual_month] < ITM_df['FO.StrikePrice1']).astype(int) * (ITM_df['FO.StrikePrice1'] - ITM_df[actual_month]) * ITM_df[month_value])
 
     st.dataframe(ITM_df)
 
