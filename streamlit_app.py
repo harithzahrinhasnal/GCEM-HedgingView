@@ -1404,7 +1404,18 @@ with tabITM:
     # Filter the DataFrame to include only the relevant columns
     filtered_df = ITM_df[columns_to_plot]
 
-   # Define the custom month order
+   # Melt the DataFrame to long format
+    ITM_long = filtered_df.melt(id_vars='FO.Acronym', 
+                                var_name='Month', 
+                                value_name='Value')
+
+    # Clean up the month names (removing '_ITM')
+    ITM_long['Month'] = ITM_long['Month'].str.replace('_ITM', '')
+
+    # Group by Month and FO.Acronym and sum the values
+    ITM_grouped = ITM_long.groupby(['Month', 'FO.Acronym'], as_index=False)['Value'].sum()
+
+    # Define the custom month order
     month_order = ['January', 'February', 'March', 'April', 'May', 'June', 
                 'July', 'August', 'September', 'October', 'November', 'December']
 
