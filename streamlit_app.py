@@ -1355,6 +1355,9 @@ with tabITM:
     
 
     Actual_Average_Brent_df = pd.read_excel("PCHP Data.xlsx", "Actual_Average_Brent")
+
+    # Round all numeric columns to two decimal places
+    Actual_Average_Brent_df = Actual_Average_Brent_df.round(2)
     st.dataframe(Actual_Average_Brent_df)
 
     # Assuming ITM_df and Actual_Average_Brent_df are already defined
