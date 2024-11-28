@@ -1353,36 +1353,30 @@ with tabITM:
         ITM_df[f"Actual {month}"] = None
     
 
-    # Cache the loading of the Excel file
-    @st.cache_data
-    def load_data(file, sheet):
-        return pd.read_excel(file, sheet).round(2)
-
     # Load the default dataset
     default_file = "PCHP Data.xlsx"
     default_sheet = "Actual_Average_Brent"
-    Actual_Average_Brent_df = load_data(default_file, default_sheet)
+    Actual_Average_Brent_df = pd.read_excel(default_file, default_sheet).round(2)
 
-    # Collapsible section for editing data with a submit button
-    with st.expander("Edit Data (Optional)"):
-        st.write("You can edit the data in the table below. The default data is preloaded.")
-        
-        # Editable table with default data preloaded
-        edited_data = st.data_editor(
-            Actual_Average_Brent_df,
-            num_rows="dynamic",
-            column_config={
-                "Year": st.column_config.TextColumn("Year"),
-                **{col: st.column_config.NumberColumn(col, format="%.2f") for col in Actual_Average_Brent_df.columns if col != "Year"}
-            }
-        )
+    ## Let the user know they can edit the default dataset
+    st.write("### Edit Data (Optional):")
+    st.write("You can edit the data in the table below. The default data is preloaded.")
 
-        # Submit button to confirm edits
-        if st.button("Submit Changes"):
-            Actual_Average_Brent_df = edited_data.round(2)
-            st.success("Changes submitted successfully!")
+    # Editable table with default data preloaded
+    Actual_Average_Brent_df = st.data_editor(
+        Actual_Average_Brent_df,
+        num_rows="dynamic",
+        column_config={
+            "Year": st.column_config.TextColumn("Year"),
+            **{col: st.column_config.NumberColumn(col, format="%.2f") for col in Actual_Average_Brent_df.columns if col != "Year"}
+        },use_container_width=True
+    )
+
+    # Ensure the DataFrame is rounded to two decimal places
+    Actual_Average_Brent_df = Actual_Average_Brent_df.round(2)
 
     # Display the final DataFrame
+    st.write("### Final Data:")
     st.dataframe(Actual_Average_Brent_df, use_container_width=True)
 
     # Create a mapping dictionary from Actual_Average_Brent_df
@@ -1450,7 +1444,7 @@ with tabITM:
                 x='Month', 
                 y='Value', 
                 color='FO.Acronym', 
-                title='Monthly ITM Distribution by Counterparty',
+                title='Monthly ITM Distribution by FO.Acronym',
                 labels={'Month': 'Month', 'Value': 'ITM Value', 'FO.Acronym': 'Acronym'},
                 barmode='stack',
                 category_orders={'Month': month_order})  # Enforce custom month order
@@ -1474,7 +1468,7 @@ with tabITM:
     pivot_df.loc['Total'] = pivot_df.sum()
 
     # Display the pivot table in Streamlit
-    st.dataframe(pivot_df,height=500, use_container_width=True)
+    st.dataframe(pivot_df, use_container_width=True)
 
 
 
