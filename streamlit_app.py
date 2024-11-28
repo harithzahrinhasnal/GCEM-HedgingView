@@ -1466,7 +1466,7 @@ with tabITM:
     pivot_df.loc['Total'] = pivot_df.sum()
 
     # Display the pivot table in Streamlit
-    st.dataframe(pivot_df, use_container_width=True)
+    st.dataframe(pivot_df,height=500, use_container_width=True)
 
 
 
