@@ -1358,19 +1358,19 @@ with tabITM:
     default_sheet = "Actual_Average_Brent"
     Actual_Average_Brent_df = pd.read_excel(default_file, default_sheet).round(2)
 
-    ## Let the user know they can edit the default dataset
-    st.write("### Edit Data (Optional):")
-    st.write("You can edit the data in the table below. The default data is preloaded.")
-
-    # Editable table with default data preloaded
-    Actual_Average_Brent_df = st.data_editor(
-        Actual_Average_Brent_df,
-        num_rows="dynamic",
-        column_config={
-            "Year": st.column_config.TextColumn("Year"),
-            **{col: st.column_config.NumberColumn(col, format="%.2f") for col in Actual_Average_Brent_df.columns if col != "Year"}
-        },use_container_width=True
-    )
+    # Collapsible section for editing data
+    with st.expander("Edit Data (Optional)"):
+        st.write("You can edit the data in the table below. The default data is preloaded.")
+        
+        # Editable table with default data preloaded
+        Actual_Average_Brent_df = st.data_editor(
+            Actual_Average_Brent_df,
+            num_rows="dynamic",
+            column_config={
+                "Year": st.column_config.TextColumn("Year"),
+                **{col: st.column_config.NumberColumn(col, format="%.2f") for col in Actual_Average_Brent_df.columns if col != "Year"}
+            }
+        )
 
     # Ensure the DataFrame is rounded to two decimal places
     Actual_Average_Brent_df = Actual_Average_Brent_df.round(2)
