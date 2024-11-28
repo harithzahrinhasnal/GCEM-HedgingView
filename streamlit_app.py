@@ -1377,6 +1377,17 @@ with tabITM:
             lambda x: actuals_dict.get(x, {}).get(month, None)
         )
 
+    # Updated list of months with _ITM
+    months_ITM = ["January_ITM", "February_ITM", "March_ITM", "April_ITM", "May_ITM", "June_ITM",
+                "July_ITM", "August_ITM", "September_ITM", "October_ITM", "November_ITM", "December_ITM"]
+
+    # Fill the DataFrame with calculated values for each month
+    for month in months_ITM:
+        actual_month = 'Actual ' + month.split('_')[0]
+        month_value = month.split('_')[0]
+        
+        df[month] = ((df[actual_month] < df['FO.StrikePrice1']).astype(int) * (df['FO.StrikePrice1'] - df[actual_month]) * df[month_value])
+
     st.dataframe(ITM_df)
 
 
