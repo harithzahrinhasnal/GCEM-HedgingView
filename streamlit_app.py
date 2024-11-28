@@ -1358,12 +1358,12 @@ with tabITM:
     default_sheet = "Actual_Average_Brent"
     Actual_Average_Brent_df = pd.read_excel(default_file, default_sheet).round(2)
 
-    # Let the user know they can edit the default dataset
+    ## Let the user know they can edit the default dataset
     st.write("### Edit Data (Optional):")
     st.write("You can edit the data in the table below. The default data is preloaded.")
 
     # Editable table with default data preloaded
-    Actual_Average_Brent_df = st.experimental_data_editor(
+    Actual_Average_Brent_df = st.data_editor(
         Actual_Average_Brent_df,
         num_rows="dynamic",
         column_config={
@@ -1378,7 +1378,6 @@ with tabITM:
     # Display the final DataFrame
     st.write("### Final Data:")
     st.dataframe(Actual_Average_Brent_df, use_container_width=True)
-
 
     # Create a mapping dictionary from Actual_Average_Brent_df
     actuals_dict = {}
