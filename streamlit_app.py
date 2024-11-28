@@ -1438,8 +1438,14 @@ with tabITM:
     # Display in Streamlit
     st.plotly_chart(fig, use_container_width=True)
 
-    # Display the DataFrame before or after plotting
-    st.dataframe(ITM_grouped, use_container_width=True)
+    # Pivot the DataFrame to reshape it
+    pivot_df = ITM_grouped.pivot(index='FO.Acronym', columns='Month', values='Value')
+
+    # Fill NaN values with 0 (optional)
+    pivot_df = pivot_df.fillna(0)
+
+    # Display the pivot table in Streamlit
+    st.dataframe(pivot_df, use_container_width=True)
 
 
 
