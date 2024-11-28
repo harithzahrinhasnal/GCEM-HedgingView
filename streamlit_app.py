@@ -1359,7 +1359,6 @@ with tabITM:
     Actual_Average_Brent_df = pd.read_excel(default_file, default_sheet).round(2)
 
     ## Let the user know they can edit the default dataset
-    st.write("### Edit Data (Optional):")
     st.write("You can edit the data in the table below. The default data is preloaded.")
 
     # Editable table with default data preloaded
@@ -1376,8 +1375,8 @@ with tabITM:
     Actual_Average_Brent_df = Actual_Average_Brent_df.round(2)
 
     # Display the final DataFrame
-    st.write("### Final Data:")
-    st.dataframe(Actual_Average_Brent_df, use_container_width=True)
+    #st.write("### Final Data:")
+    #st.dataframe(Actual_Average_Brent_df, use_container_width=True)
 
     # Create a mapping dictionary from Actual_Average_Brent_df
     actuals_dict = {}
@@ -1444,7 +1443,7 @@ with tabITM:
                 x='Month', 
                 y='Value', 
                 color='FO.Acronym', 
-                title='Monthly ITM Distribution by FO.Acronym',
+                title='Monthly ITM Distribution by Counterparty',
                 labels={'Month': 'Month', 'Value': 'ITM Value', 'FO.Acronym': 'Acronym'},
                 barmode='stack',
                 category_orders={'Month': month_order})  # Enforce custom month order
