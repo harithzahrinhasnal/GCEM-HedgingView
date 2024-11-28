@@ -1353,10 +1353,15 @@ with tabITM:
         ITM_df[f"Actual {month}"] = None
     
 
+    # Cache the loading of the Excel file
+    @st.cache_data
+    def load_data(file, sheet):
+        return pd.read_excel(file, sheet).round(2)
+
     # Load the default dataset
     default_file = "PCHP Data.xlsx"
     default_sheet = "Actual_Average_Brent"
-    Actual_Average_Brent_df = pd.read_excel(default_file, default_sheet).round(2)
+    Actual_Average_Brent_df = load_data(default_file, default_sheet)
 
     ## Let the user know they can edit the default dataset
     st.write("You can edit the data in the table below. The default data is preloaded.")
