@@ -1406,7 +1406,7 @@ with tabITM:
     # Filter the DataFrame to include only the relevant columns
     filtered_df = ITM_df[columns_to_plot]
 
-    # Melt the DataFrame to long format
+   # Melt the DataFrame to long format
     ITM_long = filtered_df.melt(id_vars='FO.Acronym', 
                                 var_name='Month', 
                                 value_name='Value')
@@ -1414,8 +1414,11 @@ with tabITM:
     # Clean up the month names (removing '_ITM')
     ITM_long['Month'] = ITM_long['Month'].str.replace('_ITM', '')
 
+    # Group by Month and FO.Acronym and sum the values
+    ITM_grouped = ITM_long.groupby(['Month', 'FO.Acronym'], as_index=False)['Value'].sum()
+
     # Create the stacked bar chart
-    fig = px.bar(ITM_long, 
+    fig = px.bar(ITM_grouped, 
                 x='Month', 
                 y='Value', 
                 color='FO.Acronym', 
@@ -1427,8 +1430,7 @@ with tabITM:
     fig.update_traces(texttemplate='%{y}', textposition='inside')
 
     # Display in Streamlit
-    st.plotly_chart(fig,use_container_width=True)
-
+    st.plotly_chart(fig, use_container_width=True)
 
 
 
