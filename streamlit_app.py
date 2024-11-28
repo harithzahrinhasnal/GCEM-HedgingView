@@ -1402,6 +1402,32 @@ with tabITM:
 
     st.dataframe(ITM_df)
 
+    # Select only the FO.Acronym and *_ITM columns
+    columns_to_plot = ['FO.Acronym'] + [col for col in ITM_df.columns if col.endswith('_ITM')]
+
+    # Filter the DataFrame to include only the relevant columns
+    filtered_df = ITM_df[columns_to_plot]
+
+    # Melt the DataFrame to long format
+    ITM_long = filtered_df.melt(id_vars='FO.Acronym', 
+                                var_name='Month', 
+                                value_name='Value')
+
+    # Clean up the month names (removing '_ITM')
+    ITM_long['Month'] = ITM_long['Month'].str.replace('_ITM', '')
+
+    # Create the stacked bar chart
+    fig = px.bar(ITM_long, 
+                x='Month', 
+                y='Value', 
+                color='FO.Acronym', 
+                title='Monthly ITM Distribution by FO.Acronym',
+                labels={'Month': 'Month', 'Value': 'ITM Value', 'FO.Acronym': 'Acronym'},
+                barmode='stack')
+
+    # Display in Streamlit
+    st.plotly_chart(fig)
+
 
 
 
