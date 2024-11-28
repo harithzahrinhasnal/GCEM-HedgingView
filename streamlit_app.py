@@ -1341,7 +1341,7 @@ with tab3:
     )
 
 with tabITM:
-    st.title("PCHP In-The-Money")
+    st.title("In-The-Money Data")
     st.subheader("Average Monthly Brent Price")
 
     # List of months
