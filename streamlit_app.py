@@ -1377,8 +1377,6 @@ with tabITM:
             lambda x: actuals_dict.get(x, {}).get(month, None)
         )
 
-    st.write(ITM_df.columns)
-
     # Updated list of months with _ITM
     months_ITM = ["January_ITM", "February_ITM", "March_ITM", "April_ITM", "May_ITM", "June_ITM",
                 "July_ITM", "August_ITM", "September_ITM", "October_ITM", "November_ITM", "December_ITM"]
@@ -1406,25 +1404,22 @@ with tabITM:
     # Filter the DataFrame to include only the relevant columns
     filtered_df = ITM_df[columns_to_plot]
 
-   # Melt the DataFrame to long format
-    ITM_long = filtered_df.melt(id_vars='FO.Acronym', 
-                                var_name='Month', 
-                                value_name='Value')
+   # Define the custom month order
+    month_order = ['January', 'February', 'March', 'April', 'May', 'June', 
+                'July', 'August', 'September', 'October', 'November', 'December']
 
-    # Clean up the month names (removing '_ITM')
-    ITM_long['Month'] = ITM_long['Month'].str.replace('_ITM', '')
+    # Ensure 'Month' is a categorical type with the defined order
+    ITM_grouped['Month'] = pd.Categorical(ITM_grouped['Month'], categories=month_order, ordered=True)
 
-    # Group by Month and FO.Acronym and sum the values
-    ITM_grouped = ITM_long.groupby(['Month', 'FO.Acronym'], as_index=False)['Value'].sum()
-
-    # Create the stacked bar chart
+    # Create the stacked bar chart with the custom order
     fig = px.bar(ITM_grouped, 
                 x='Month', 
                 y='Value', 
                 color='FO.Acronym', 
                 title='Monthly ITM Distribution by FO.Acronym',
                 labels={'Month': 'Month', 'Value': 'ITM Value', 'FO.Acronym': 'Acronym'},
-                barmode='stack')
+                barmode='stack',
+                category_orders={'Month': month_order})  # Enforce custom month order
 
     # Add values at the top of each bar
     fig.update_traces(texttemplate='%{y}', textposition='inside')
