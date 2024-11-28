@@ -1400,8 +1400,6 @@ with tabITM:
     # Remove the columns from ITM_df
     ITM_df = ITM_df.drop(columns=columns_to_remove, errors='ignore')
 
-    st.dataframe(ITM_df)
-
     # Select only the FO.Acronym and *_ITM columns
     columns_to_plot = ['FO.Acronym'] + [col for col in ITM_df.columns if col.endswith('_ITM')]
 
@@ -1425,8 +1423,11 @@ with tabITM:
                 labels={'Month': 'Month', 'Value': 'ITM Value', 'FO.Acronym': 'Acronym'},
                 barmode='stack')
 
+    # Add values at the top of each bar
+    fig.update_traces(texttemplate='%{y}', textposition='inside')
+
     # Display in Streamlit
-    st.plotly_chart(fig)
+    st.plotly_chart(fig,use_container_width=True)
 
 
 
