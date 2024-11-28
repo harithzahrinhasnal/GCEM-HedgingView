@@ -1377,6 +1377,8 @@ with tabITM:
             lambda x: actuals_dict.get(x, {}).get(month, None)
         )
 
+    st.dataframe(ITM_df)
+
     # Updated list of months with _ITM
     months_ITM = ["January_ITM", "February_ITM", "March_ITM", "April_ITM", "May_ITM", "June_ITM",
                 "July_ITM", "August_ITM", "September_ITM", "October_ITM", "November_ITM", "December_ITM"]
