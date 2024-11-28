@@ -1369,7 +1369,7 @@ with tabITM:
         column_config={
             "Year": st.column_config.TextColumn("Year"),
             **{col: st.column_config.NumberColumn(col, format="%.2f") for col in Actual_Average_Brent_df.columns if col != "Year"}
-        }
+        },use_container_width=True
     )
 
     # Ensure the DataFrame is rounded to two decimal places
