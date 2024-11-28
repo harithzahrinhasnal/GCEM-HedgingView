@@ -1358,7 +1358,7 @@ with tabITM:
 
     # Round all numeric columns to two decimal places
     Actual_Average_Brent_df = Actual_Average_Brent_df.round(2)
-    st.dataframe(Actual_Average_Brent_df)
+    st.dataframe(Actual_Average_Brent_df, use_container_width= True)
 
     # Assuming ITM_df and Actual_Average_Brent_df are already defined
 
