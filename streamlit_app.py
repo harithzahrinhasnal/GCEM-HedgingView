@@ -1438,6 +1438,10 @@ with tabITM:
     # Display in Streamlit
     st.plotly_chart(fig, use_container_width=True)
 
+    # Display the DataFrame before or after plotting
+    st.dataframe(ITM_grouped, use_container_width=True)
+
+
 
 
 with tab4:
