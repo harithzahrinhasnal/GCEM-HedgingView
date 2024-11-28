@@ -1358,12 +1358,12 @@ with tabITM:
     default_sheet = "Actual_Average_Brent"
     Actual_Average_Brent_df = pd.read_excel(default_file, default_sheet).round(2)
 
-    # Collapsible section for editing data
+    # Collapsible section for editing data with a submit button
     with st.expander("Edit Data (Optional)"):
         st.write("You can edit the data in the table below. The default data is preloaded.")
         
         # Editable table with default data preloaded
-        Actual_Average_Brent_df = st.data_editor(
+        edited_data = st.data_editor(
             Actual_Average_Brent_df,
             num_rows="dynamic",
             column_config={
@@ -1372,9 +1372,12 @@ with tabITM:
             }
         )
 
-    # Ensure the DataFrame is rounded to two decimal places
-    Actual_Average_Brent_df = Actual_Average_Brent_df.round(2)
+        # Submit button to confirm edits
+        if st.button("Submit Changes"):
+            Actual_Average_Brent_df = edited_data.round(2)
+            st.success("Changes submitted successfully!")
 
+    # Display the final DataFrame
     st.dataframe(Actual_Average_Brent_df, use_container_width=True)
 
     # Create a mapping dictionary from Actual_Average_Brent_df
