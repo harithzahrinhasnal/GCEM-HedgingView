@@ -1356,7 +1356,7 @@ with tabITM:
     # Cache the loading of the Excel file
     @st.cache_data
     def load_data(file, sheet):
-        return pd.read_excel(file, sheet).round(2)
+        return pd.read_excel(file, sheet).round(3)
 
     # Load the default dataset
     default_file = "PCHP Data.xlsx"
@@ -1372,12 +1372,12 @@ with tabITM:
         num_rows="dynamic",
         column_config={
             "Year": st.column_config.TextColumn("Year"),
-            **{col: st.column_config.NumberColumn(col, format="%.2f") for col in Actual_Average_Brent_df.columns if col != "Year"}
+            **{col: st.column_config.NumberColumn(col, format="%.3f") for col in Actual_Average_Brent_df.columns if col != "Year"}
         },use_container_width=True
     )
 
     # Ensure the DataFrame is rounded to two decimal places
-    Actual_Average_Brent_df = Actual_Average_Brent_df.round(2)
+    Actual_Average_Brent_df = Actual_Average_Brent_df.round(3)
 
     # Display the final DataFrame
     #st.write("### Final Data:")
