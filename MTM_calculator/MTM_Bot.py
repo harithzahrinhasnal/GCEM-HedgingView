@@ -115,22 +115,20 @@ def main():
 
 
     #Choose Your Monitor and Location (Use Coordinate.py to recalibration position of option calc in BBG)
-    Monitor = 'Probook'
+    Monitor = 'BBG Laptop'
     #LOCATIONS
     if Monitor == 'BBG Laptop': #make sure resolution is (1280,720)
-        search_bar = [32, 75]
-        CO_1 = [51, 246]
-        date_input = [192, 278]
-        period = [316,278]
-        delivery = [223, 298]
-        barrel_1 = [267, 431]
-        premium_1 = [760, 431]
-        calc_time = [400 ,236]
-        Upper_strike = [551, 430]
-        calc = [98, 140]
-        prem = [744, 342]
-        prem_copy = [774, 362]
-        swap = [360,585]
+        search_bar = [44, 112]
+        CO_1 = [81, 300]
+        date_input = [220, 310]
+        period = [350 ,310]
+        delivery = [280, 340]
+        barrel_1 = [280, 470]
+        premium_1 = [820, 470]
+        calc_time = [361 ,250]
+        Upper_strike = [570, 470]
+        calc = [82, 161] 
+        swap = [399,620]
 
     if Monitor == 'Probook': #make sure resolution is (1280,720)
         search_bar = [44, 112]
@@ -245,7 +243,7 @@ def main():
             pyautogui.click()
 
             if i == 0:
-                time.sleep(7)
+                time.sleep(10)
             else:
                 time.sleep(2)
 
