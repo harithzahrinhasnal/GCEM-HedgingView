@@ -115,7 +115,7 @@ def main():
 
 
     #Choose Your Monitor and Location (Use Coordinate.py to recalibration position of option calc in BBG)
-    Monitor = 'BBG Laptop'
+    Monitor = 'Probook'
     #LOCATIONS
     if Monitor == 'BBG Laptop': #make sure resolution is (1280,720)
         search_bar = [44, 112]
@@ -141,7 +141,7 @@ def main():
         calc_time = [361 ,250]
         Upper_strike = [570, 470]
         calc = [82, 181] 
-        swap = [399,570]
+        swap = [399,620]
 
         
     if Monitor == 'Office Monitor': 
@@ -190,14 +190,16 @@ def main():
     time.sleep(1)
     pyautogui.hotkey('ctrl', 't')
 
+    """
     time.sleep(2)
     pyautogui.moveTo(search_bar, duration = 0.5)
     pyautogui.click()
     time.sleep(2)
+    
     pyautogui.write('Co1 Comdty')
     time.sleep(2)
     pyautogui.moveTo(CO_1, duration = 0.5)
-    pyautogui.click()
+    pyautogui.click()"""
 
     ###OPEN OPTION PRICING
     time.sleep(2)
