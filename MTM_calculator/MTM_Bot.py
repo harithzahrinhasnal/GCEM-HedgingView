@@ -115,7 +115,7 @@ def main():
 
 
     #Choose Your Monitor and Location (Use Coordinate.py to recalibration position of option calc in BBG)
-    Monitor = 'Probook'
+    Monitor = 'Office Monitor' #BBG Laptop, Probook, Office Monitor
     #LOCATIONS
     if Monitor == 'BBG Laptop': #make sure resolution is (1280,720)
         search_bar = [44, 112]
@@ -148,6 +148,7 @@ def main():
         search_bar = [44, 112]
         CO_1 = [81, 300]
         date_input = [220, 310]
+        today_input = [220, 250]
         period = [330 ,310]
         delivery = [280, 340]
         barrel_1 = [280, 470]
@@ -155,8 +156,6 @@ def main():
         calc_time = [361 ,250]
         Upper_strike = [570, 470]
         calc = [82, 181]
-        prem = [740, 378]
-        prem_copy = [756, 400]
         swap = [375,635]
     ##############################
     # Create a folder with the name formatted_date_time if it doesn't exist
@@ -213,6 +212,11 @@ def main():
     pyautogui.moveTo(delivery, duration = 0.5)
     pyautogui.click()
     pyautogui.write('14')
+
+    pyautogui.moveTo(today_input, duration = 0.5)
+    pyautogui.click()
+    pyautogui.write('010225')
+    pyautogui.press('enter')
 
     pyautogui.moveTo(barrel_1, duration = 0.5)
     pyautogui.click()
