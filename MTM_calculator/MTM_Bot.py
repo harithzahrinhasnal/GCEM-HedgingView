@@ -115,7 +115,7 @@ def main():
 
 
     #Choose Your Monitor and Location (Use Coordinate.py to recalibration position of option calc in BBG)
-    Monitor = 'Probook' #BBG Laptop, Probook, Office Monitor
+    Monitor = 'Office Monitor' #BBG Laptop, Probook, Office Monitor
     #LOCATIONS
     if Monitor == 'BBG Laptop': #make sure resolution is (1280,720)
         search_bar = [44, 112]
