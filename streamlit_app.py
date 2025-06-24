@@ -1118,10 +1118,6 @@ with tab3:
 
 
 
-    """# Add a new column 'Total' containing the sum of values in the month columns
-    formatted_df['Current Value, USD'] = formatted_df['Market Net Premium, USD'] * formatted_df[month_columns_bbls].sum(axis=1)
-    columns_to_display.append('Current Value, USD')"""
-
     # Add a new column 'Total' containing the sum of values in the month columns
     formatted_df['Current Value, USD'] = formatted_df[month_columns_value].sum(axis=1)
     columns_to_display.append('Current Value, USD')
