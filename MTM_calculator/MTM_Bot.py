@@ -115,20 +115,20 @@ def main():
 
 
     #Choose Your Monitor and Location (Use Coordinate.py to recalibration position of option calc in BBG)
-    Monitor = 'Probook' #BBG Laptop, Probook, Office Monitor
+    Monitor = 'BBG Laptop' #BBG Laptop, Probook, Office Monitor
     #LOCATIONS
     if Monitor == 'BBG Laptop': #make sure resolution is (1280,720)
         search_bar = [44, 112]
         CO_1 = [81, 300]
-        date_input = [220, 310]
-        period = [350 ,310]
+        date_input = [220, 320]
+        period = [330 ,330]
         delivery = [280, 340]
-        barrel_1 = [280, 470]
-        premium_1 = [820, 470]
-        calc_time = [361 ,250]
-        Upper_strike = [570, 470]
-        calc = [82, 161] 
-        swap = [399,620]
+        barrel_1 = [280, 480]
+        premium_1 = [780, 480]
+        calc_time = [361 ,270]
+        Upper_strike = [570, 480]
+        calc = [82, 181] 
+        swap = [399,580]
 
     if Monitor == 'Probook': #make sure resolution is (1280,720)
         search_bar = [44, 112]
@@ -187,7 +187,7 @@ def main():
         return float(numbers[0])
 
     time.sleep(1)
-    pyautogui.hotkey('ctrl', 't')
+    #pyautogui.hotkey('ctrl', 't')
 
     """
     time.sleep(2)
@@ -202,11 +202,11 @@ def main():
 
     ###OPEN OPTION PRICING
     time.sleep(2)
-    pyautogui.moveTo(search_bar, duration = 0.5)
-    pyautogui.press('enter')
-    pyautogui.write('OVML PT APO')
-    pyautogui.press('enter')
-    time.sleep(9)
+    #pyautogui.moveTo(search_bar, duration = 0.5)
+   # pyautogui.press('enter')
+   # pyautogui.write('OVML PT APO')
+    #pyautogui.press('enter')
+    #time.sleep(9)
 
     ###OPTION PRICING SETUP####
     pyautogui.moveTo(delivery, duration = 0.5)
@@ -254,6 +254,7 @@ def main():
                 time.sleep(2)
 
             pyautogui.moveTo(premium_1, duration = 0.5)  
+            pyautogui.click()
             pyautogui.click()
             pyautogui.hotkey('ctrl', 'c')
 
@@ -309,6 +310,7 @@ def main():
         time.sleep(1)
 
         pyautogui.moveTo(swap, duration = 0.5)
+        pyautogui.click()
         pyautogui.click()
         time.sleep(0.5)
         pyautogui.hotkey('ctrl', 'c')
