@@ -447,6 +447,19 @@ with tab2:
 
         # Add the target trace to the figure
         fig_quantity.add_trace(target_trace)
+
+        # If FY2026 is selected, add a separate "Base Volume" line
+        if selected_portfolios == ['FY2026 PCHP']:
+            base_volume = 9750000
+            base_trace = go.Scatter(
+                x=df_grouped['Month'],
+                y=[base_volume] * len(df_grouped['Month']),
+                mode='lines',
+                line=dict(color='green', dash='dot'),
+                name=f"Base Volume ({base_volume:,.0f})"
+            )
+            fig_quantity.add_trace(base_trace)
+
         if len(selected_portfolios) == 1:
             # Calculate unexecuted volumes by subtracting executed volumes from the targeted value
             df_grouped['Unexecuted'] = targeted_value - df_grouped['Value']
