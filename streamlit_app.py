@@ -81,7 +81,7 @@ all_dealers = ['All'] + all_dealers.tolist()
 
 # Set default selections to include "All"
 selected_counterparties = st.sidebar.multiselect("Counterparty", all_counterparties, default=['All'])
-selected_portfolios = st.sidebar.multiselect("Portfolio", all_portfolios, default=['FY2025 PCHP'])
+selected_portfolios = st.sidebar.multiselect("Portfolio", all_portfolios, default=['FY2026 PCHP'])
 
 selected_dealers = st.sidebar.multiselect("Dealer", all_dealers, default=['All'])
 
@@ -434,7 +434,7 @@ with tab2:
 
 
         # Add a horizontal line to indicate the targeted value
-        default_targeted_value =  int(120000000 /12)  # Adjust this value according to your targeted value
+        default_targeted_value =  int(232,680,000 /12)  # Adjust this value according to your targeted value
         targeted_value = [default_targeted_value,default_targeted_value,default_targeted_value,
                           default_targeted_value,default_targeted_value,default_targeted_value,
                           default_targeted_value,default_targeted_value,default_targeted_value,
@@ -443,7 +443,7 @@ with tab2:
         # Create a trace for the target line
         target_trace = go.Scatter(x=df_grouped['Month'], y=[targeted_value],
                                 mode='lines', line=dict(color='orange', dash='dash'),
-                                name='FY2025 Mandated Volume')
+                                name='FY2026 Mandated Volume')
 
         # Add the target trace to the figure
         fig_quantity.add_trace(target_trace)
@@ -451,7 +451,7 @@ with tab2:
             # Calculate unexecuted volumes by subtracting executed volumes from the targeted value
             df_grouped['Unexecuted'] = targeted_value - df_grouped['Value']
 
-            if selected_portfolios == ['FY2025 PCHP']:
+            if selected_portfolios == ['FY2026 PCHP']:
                 # Create a stacked bar chart with custom colors
                 fig_stacked_bar = px.bar(df_grouped, x='Month', y=['Value', 'Unexecuted'],
                                         title='Executed vs. Unexecuted Volumes by Portfolio for Each Month',
