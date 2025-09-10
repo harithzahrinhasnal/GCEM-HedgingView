@@ -434,7 +434,7 @@ with tab2:
 
 
         # Add a horizontal line to indicate the targeted value
-        default_targeted_value =  int(232,680,000 /12)  # Adjust this value according to your targeted value
+        default_targeted_value =  int(232680000 /12)  # Adjust this value according to your targeted value
         targeted_value = [default_targeted_value,default_targeted_value,default_targeted_value,
                           default_targeted_value,default_targeted_value,default_targeted_value,
                           default_targeted_value,default_targeted_value,default_targeted_value,
@@ -725,7 +725,7 @@ with tab3:
 
         return result_df
 
-    if selected_portfolios == ['FY2025 PCHP']:
+    if selected_portfolios == ['FY2026 PCHP']:
         # Process the first set of data
         df1 = df_selected_sheet
         df2 = strike_data(st, filtered_df, 'FO.StrikePrice1', 'FO.StrikePrice1')
