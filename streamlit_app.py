@@ -743,7 +743,7 @@ if st.session_state.df is not None:
             )
             
             # Get current month for comparison
-            current_month = pd.Timestamp.now().replace(day=1)
+            current_month = pd.Timestamp.now().replace(day=1).normalize()
             
             # Create a list to store all month columns
             all_months = set()
