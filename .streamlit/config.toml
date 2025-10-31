@@ -1,0 +1,31 @@
+[theme]
+base = "light"
+
+# General color setup
+textColor = "#E5F6F5"
+primaryColor = "#00A19C"                # PETRONAS Green
+backgroundColor = "#0D1B1C"             # Deep PETRONAS background
+secondaryBackgroundColor = "#003A3E"    # Dark Teal secondary surface
+
+# Widgets
+showWidgetBorder = true
+borderColor = "#00B6B3"                 # Supporting aqua for accents
+
+# Dataframes
+dataframeHeaderBackgroundColor = "#003A3E"
+
+# Base text
+font = "Space Grotesk"
+baseFontWeight = 300
+baseFontSize = 14
+
+# Heading text
+headingFont = "Space Grotesk"
+headingFontWeights = [400, 500, 400, 300, 300, 300]
+headingFontSizes = ["2.5rem", "1.5rem", "1rem"]
+
+[[theme.fontFaces]]
+family = "Space Grotesk"
+style = "normal"
+weight = "300 700"
+url = "https://fonts.gstatic.com/s/spacegrotesk/v21/V8mDoQDjQSkFtoMM3T6r8E7mPbF4C_k3HqU.woff2"
