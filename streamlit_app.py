@@ -1,1582 +1,1606 @@
-from collections import namedtuple
-import altair as alt
-import pandas as pd
 import streamlit as st
-import plotly.express as px
+import pandas as pd
 import plotly.graph_objects as go
-import numpy as np
-import datetime as dt
-from datetime import datetime
+from plotly.subplots import make_subplots
+import requests
+import urllib3
+import json
+from requests.auth import HTTPBasicAuth
+import yfinance as yf
+from datetime import datetime, timedelta
+from curl_cffi import requests as curl_requests
 from io import BytesIO
-import io
-import time
-import xlsxwriter
-from fpdf import FPDF
-import base64
-import math
+from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
+from openpyxl.utils import get_column_letter
 
+# Disable SSL verification warnings
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-
-# Define your discrete color sequence PETRONAS COLORS
-color_discrete_sequence = [
-    "#00b1a9",  # Original color - R000 G177 B169
-    "#763f98",  # Original color - R118 G063 B152
-    "#20419a",  # Original color - R032 G065 B154
-    "#fdb924",  # Original color - R253 G185 B036
-    "#bfd730",  # Original color - R191 G215 B048
-    "#007b73",  # Shade of R000 G177 B169
-    "#3a1d4c",  # Shade of R118 G063 B152
-    "#101e4a",  # Shade of R032 G065 B154
-    "#cc8b1c",  # Shade of R253 G185 B036
-    "#8e9c1b",  # Shade of R191 G215 B048
-    "#00524f",  # Darker shade of R000 G177 B169
-    "#9a6cb3",  # Lighter shade of R118 G063 B152
-    "#4367c5",  # Lighter shade of R032 G065 B154
-    "#fcd05b",  # Lighter shade of R253 G185 B036
-    "#d0e16a",  # Lighter shade of R191 G215 B048
-    "#005f57"   # Even darker shade of R000 G177 B169
-]
-
-color_discrete_sequence_2 = [
-    '#00B1A9', '#763F98', '#FF6F61', '#3B5998', '#FFD166', 
-    '#06D6A0', '#118AB2', '#073B4C', '#A05195', '#2EC4B6', 
-    '#FFB703', '#E63946', '#457B9D', '#E9C46A', '#2A9D8F', 
-    '#8D99AE', '#EF476F'
-]
-
-
-
-# Setting Up
-st.set_page_config(page_title = "DashBoard",page_icon = r'Resources/4953098.png',layout ="wide")
-
-st.markdown(
-    """
-        <style>
-            .appview-container .main .block-container {{
-                padding-top: {padding_top}rem;
-                padding-bottom: {padding_bottom}rem;
-                }}
-
-        </style>""".format(
-        padding_top=1, padding_bottom=1
-    ),
-    unsafe_allow_html=True,
+# Page configuration
+st.set_page_config(
+    page_title="PCHP Analytics Dashboard",
+    page_icon="📊",
+    layout="wide"
 )
 
-
-df = pd.read_excel("PCHP Data.xlsx","Overall_data")
-
-
-# Sidebar header and widgets for selecting filters
-st.sidebar.header("Choose your filter:")
-all_counterparties = df["FO.CounterpartyName"].dropna().unique()
-all_portfolios = df["Portfolio"].dropna().unique()
-all_dates = pd.to_datetime(df['FO.TradeDate']).dt.date.dropna().unique()
-all_dealers = df["FO.DealerID"].dropna().unique()
-
-# Add "All" option to the lists
-all_counterparties = ['All'] + all_counterparties.tolist()
-all_portfolios = ['All'] + all_portfolios.tolist()
-all_dealers = ['All'] + all_dealers.tolist()
-
-# Set default selections to include "All"
-selected_counterparties = st.sidebar.multiselect("Counterparty", all_counterparties, default=['All'])
-selected_portfolios = st.sidebar.multiselect("Portfolio", all_portfolios, default=['FY2026 PCHP'])
-
-selected_dealers = st.sidebar.multiselect("Dealer", all_dealers, default=['All'])
-
-# Update the selected options if "All" is selected
-if 'All' in selected_counterparties:
-    selected_counterparties = all_counterparties[1:]  # Exclude "All"
-else:
-    selected_counterparties = selected_counterparties
-
-if 'All' in selected_portfolios:
-    selected_portfolios = all_portfolios[1:]  # Exclude "All"
-else:
-    selected_portfolios = selected_portfolios
-
-if 'All' in selected_dealers:
-    selected_dealers = all_dealers[1:]  # Exclude "All"
-else:
-    selected_dealers = selected_dealers
-
-# Filter data based on selected counterparties, portfolios, and date range
-filtered_df = df[(df['FO.CounterpartyName'].isin(selected_counterparties)) &
-                  (df['Portfolio'].isin(selected_portfolios))]
-
-filtered_df = filtered_df[(filtered_df['FO.DealerID'].isin(selected_dealers))] 
-                  
-
-# Convert the "FO.TradeDate" column to datetime if it's not already
-filtered_df['FO.TradeDate'] = pd.to_datetime(filtered_df['FO.TradeDate'], errors='coerce')
-
-
-
-# Date range selection
-st.sidebar.header("Select Date Range")
-
- ## Range selector
-format = 'MMM DD, YYYY'  # format output
-
-# Handle NaTType error and set default values for the date range
-try:
-    MIN_MAX_RANGE = (filtered_df['FO.TradeDate'].dropna().min(), filtered_df['FO.TradeDate'].dropna().max())
-except KeyError:
-    # Handle KeyError (e.g., due to NaTType) by setting default min and max dates
-    MIN_MAX_RANGE = (pd.Timestamp('1900-01-01'), pd.Timestamp('2100-12-31'))
-
-# Get the minimum and maximum dates from the filtered DataFrame
-min_date = MIN_MAX_RANGE[0]
-max_date = MIN_MAX_RANGE[1]
-
-# Set the pre-selected dates to match the minimum and maximum dates
-PRE_SELECTED_DATES = (min_date.to_pydatetime(), max_date.to_pydatetime())  # Convert to datetime objects
-
-# Handle the KeyError (NaTType) when creating the slider
-try:
-    selected_min, selected_max = st.sidebar.slider(
-        "Datetime slider",
-        value=PRE_SELECTED_DATES,
-        min_value=MIN_MAX_RANGE[0],
-        max_value=MIN_MAX_RANGE[1],format=format
-    )
-except KeyError:
-    # Set default values for the slider in case of NaTType error
-    selected_min, selected_max = PRE_SELECTED_DATES
-
-# Convert the date range to pandas Timestamp objects
-start_date = pd.to_datetime(selected_min)
-end_date = pd.to_datetime(selected_max)
-
-filtered_df = filtered_df[(filtered_df['FO.TradeDate'] >= start_date) &
-                  (filtered_df['FO.TradeDate'] <= end_date)]
-
-ITM_df=filtered_df.copy()
-
-#Title
-
-st.title("Group Commodity Exposure Management Dashboard")
-tab1, tab2, tab3,tabITM, tab4 = st.tabs(["Overall Data", "Overview", "MTM","ITM", "Report"])
-
-
-with tab1:
-    # Display PCHP Data
-    st.title("PCHP Execution Data")
-    # Create a formatted copy of the filtered DataFrame to preserve the original data
-    formatted_df = filtered_df.copy()
-
-    # Format date columns for better readability
-    date_columns = ['FO.TradeDate', 'FO.StartFixDate', 'FO.EndFixDate', 'FO.Settlement_DeliveryDate']
-    for column in date_columns:
-        formatted_df[column] = formatted_df[column].dt.strftime('%d %b %Y')
-
-    # Specify columns to display in the table
-    columns_to_display = ['FO.TradeDate','FO.DealerID',"Portfolio", 'FO.CounterpartyName','FO.PremiumStrike1','FO.PremiumStrike2','FO.NetPremium', 'FO.Position_Quantity',
-                        'FO.StrikePrice1', 'FO.StrikePrice2', 'FO.StartFixDate', 'FO.EndFixDate', 'FO.Settlement_DeliveryDate',
-                        'O.January','O.February','O.March','O.April','O.May','O.June','O.July',
-                        'O.August','O.September','O.October','O.November','O.December']
-    
-    
-
-    # Reset index to start from 1
-    formatted_df = formatted_df.reset_index(drop=True)
-
-    # Start index from 1
-    formatted_df.index = formatted_df.index + 1
-
-    # Show the formatted DataFrame using st.dataframe
-    st.dataframe(formatted_df[columns_to_display],height=500, use_container_width = True)
-
-with tab2:
-    st.title('Execution Overview')
-    #Brent Price Data
-    df_prices = pd.read_excel("PCHP Data.xlsx","Brent_Prices")
-    df_prices['Date'] = pd.to_datetime(df_prices['Date'], errors='coerce')
-    filtered_df_prices = df_prices[(df_prices['Date'] >= start_date) &
-                    (df_prices['Date'] <= end_date)]
-
-    # Create a Plotly line chart
-    fig_Brent = px.line(filtered_df_prices, x='Date', y='Historical Brent Price', title='Trade Execution Window',
-                        labels={'Historical Brent Price': 'Brent Price'})
-
-    # Update the line color
-    fig_Brent.update_traces(line_color='#808080')
-
-    # Use the custom color sequence for each portfolio
-    portfolio_colors = {portfolio: color_discrete_sequence[i % len(color_discrete_sequence)]
-                        for i, portfolio in enumerate(filtered_df['Portfolio'].unique())}
-
-    # Create a dictionary to store traces for each portfolio
-    portfolio_traces = {}
-
-    # Add markers for executed trades, grouped by portfolio
-    for index, trade in filtered_df.iterrows():
-        portfolio = trade['Portfolio']
-        if portfolio not in portfolio_traces:
-            portfolio_traces[portfolio] = {'x': [], 'y': [], 'color': portfolio_colors.get(portfolio, 'red')}
-        
-        corresponding_price = filtered_df_prices.loc[filtered_df_prices['Date'] == trade['FO.TradeDate'], 'Historical Brent Price'].values
-        if len(corresponding_price) > 0:
-            portfolio_traces[portfolio]['x'].append(trade['FO.TradeDate'])
-            portfolio_traces[portfolio]['y'].append(corresponding_price[0])
-
-    # Add the portfolio traces to the figure
-    for portfolio, trace_data in portfolio_traces.items():
-        fig_Brent.add_trace(
-            go.Scatter(
-                x=trace_data['x'],
-                y=trace_data['y'],
-                mode='markers',
-                marker=dict(color=trace_data['color']),
-                name=f'Executed Trades - {portfolio}',
-                legendgroup=portfolio,
-                showlegend=True
-            )
-        )
-
-    # Update the layout to include the markers and show legend below x-axis
-    fig_Brent.update_layout(
-        showlegend=True,
-        legend=dict(
-            orientation="h",
-            yanchor="bottom",
-            y=1.02,
-            xanchor="right",
-            x=1
-        )
-    )
-
-     # Convert the chart to an image with higher resolution
-    image = fig_Brent.to_image(format="png", width=1200, height=500, scale=2.0)
-
-    # Save the image to a file
-    image_path = r"Resources\Plots\Brent.png"
-    with open(image_path, "wb") as f:
-        f.write(image)
-
-    # Display the Plotly chart
-    st.plotly_chart(fig_Brent, use_container_width=True, height=400,key='1')
-
-
-
-    # Calculate Total_Position_Quantity and Weighted_Avg_Net_Premium for each portfolio
-    filtered_df['Weighted_Avg_Net_Premium'] = (filtered_df['FO.NetPremium'] * filtered_df['FO.Position_Quantity']) / filtered_df.groupby('Portfolio')['FO.Position_Quantity'].transform('sum')
-    filtered_df['Weighted_Avg_Protection'] = (filtered_df['FO.StrikePrice1'] * filtered_df['FO.Position_Quantity']) / filtered_df.groupby('Portfolio')['FO.Position_Quantity'].transform('sum')
-    filtered_df['Weighted_Avg_Lower_Protection'] = (filtered_df['FO.StrikePrice2'] * filtered_df['FO.Position_Quantity']) / filtered_df.groupby('Portfolio')['FO.Position_Quantity'].transform('sum')
-    filtered_df['Weighted_Avg_Protection_Band'] = filtered_df['Weighted_Avg_Protection'] - filtered_df['Weighted_Avg_Lower_Protection']
-    filtered_df['Total_Cost'] = (filtered_df['FO.NetPremium'] * filtered_df['FO.Position_Quantity'])
-    grouped_data = filtered_df.groupby('Portfolio').agg(
-    Total_Position_Quantity=pd.NamedAgg(column='FO.Position_Quantity', aggfunc='sum'),
-    Trade_Numbers=pd.NamedAgg(column='Portfolio', aggfunc='count'),
-    Total_Cost=pd.NamedAgg(column='Total_Cost', aggfunc='sum'),
-    Weighted_Avg_Net_Premium=pd.NamedAgg(column='Weighted_Avg_Net_Premium', aggfunc='sum'),
-    Weighted_Avg_Protection=pd.NamedAgg(column='Weighted_Avg_Protection', aggfunc='sum'),
-    Weighted_Avg_Lower_Protection=pd.NamedAgg(column='Weighted_Avg_Lower_Protection', aggfunc='sum'),
-    Weighted_Avg_Protection_Band=pd.NamedAgg(column='Weighted_Avg_Protection_Band', aggfunc='sum')
-    ).reset_index()
-
-    
-
-    # Apply accounting format to the numeric columns
-    grouped_data['Total_Position_Quantity'] = grouped_data['Total_Position_Quantity'].apply('{:,.0f}'.format)
-    grouped_data['Total_Cost'] = grouped_data['Total_Cost'].apply('USD {:,.2f}'.format)
-    grouped_data['Weighted_Avg_Net_Premium'] = grouped_data['Weighted_Avg_Net_Premium'].apply('USD {:,.2f}'.format)
-    grouped_data['Weighted_Avg_Protection'] = grouped_data['Weighted_Avg_Protection'].apply('USD {:,.2f}'.format)
-    grouped_data['Weighted_Avg_Lower_Protection'] = grouped_data['Weighted_Avg_Lower_Protection'].apply('USD {:,.2f}'.format)
-    grouped_data['Weighted_Avg_Protection_Band'] = grouped_data['Weighted_Avg_Protection_Band'].apply('USD {:,.2f}'.format)
-
-
-    
-
-
-   # Define the color for all cells
-    grey_color = '#f6f6f6'
-
-    fig3 = go.Figure(data=[go.Table(
-        header=dict(
-            values=['Portfolio', 'Number of Trades', 'Total Volume Hedged', 'Total Cost', 'Weighted Average Net Premium', 'Weighted Average Protection', 'Weighted Average Lower Protection', 'Protection Band'],
-            # Applying colors to the header cells
-            line_color='black', align='center'
-        ),
-        cells=dict(
-            values=[grouped_data['Portfolio'], grouped_data['Trade_Numbers'], grouped_data['Total_Position_Quantity'], grouped_data['Total_Cost'], grouped_data['Weighted_Avg_Net_Premium'],
-                    grouped_data['Weighted_Avg_Protection'], grouped_data['Weighted_Avg_Lower_Protection'], grouped_data['Weighted_Avg_Protection_Band']],
-            # Applying colors to all cells
-             # Setting the border color
-            line_color='black', align='center'
-        )
-    )])
-
-    
-    
-
-        # Grouped data with more descriptive column names
-    grouped_data = grouped_data.rename(columns={
-        'Portfolio': 'Portfolio',
-        'Total_Position_Quantity': 'Total Position Quantity',
-        'Trade_Numbers': 'Number of Trades',
-        'Total_Cost': 'Total Cost',
-        'Weighted_Avg_Net_Premium': 'Weighted Average Net Premium',
-        'Weighted_Avg_Protection': 'Weighted Average Protection',
-        'Weighted_Avg_Lower_Protection': 'Weighted Average Lower Protection',
-        'Weighted_Avg_Protection_Band': 'Weighted Average Protection Band'
-    })
-
-    # Apply text-align: center to all cells in the DataFrame
-    grouped_data = grouped_data.style.set_properties(**{'text-align': 'center'})
-
-    # Display the grouped data with center-aligned values using st.dataframe()
-    #st.dataframe(grouped_data, use_container_width=True, hide_index=True)
-    
-    st.plotly_chart(fig3, use_container_width=True,key="2")
-
-     # Convert the chart to an image with higher resolution
-    image = fig3.to_image(format="png", width=1200, height=250, scale=2.0)
-
-    # Save the image to a file
-    image_path = r"Resources\Plots\Execution_table.png"
-    with open(image_path, "wb") as f:
-        f.write(image)
-
-
-    st.divider()
-
-    col1, col2 = st.columns((2))
-
-    with col1:
-        # Custom colors for each dealer
-        dealer_colors = {
-            'HZ': '#00b1a9',
-            'DS': '#763f98',
-            'EG': "#20419a",
-            'AS': "#fdb924",
-            # Add more dealers and colors as needed
-        }    
-        
-        # Calculate Volume executed versus Counterparty
-        st.subheader("Volume executed versus Counterparty")
-        
-        # Add a column for custom colors based on DealerID
-        filtered_df['Color'] = filtered_df['FO.DealerID'].map(dealer_colors)
-
-        # Create the histogram with custom colors
-        fig1 = px.histogram(filtered_df, x='FO.Acronym', y='FO.Position_Quantity', color='FO.DealerID', title='Sum of Volume Executed', color_discrete_map=dealer_colors)
-
-        # Update the x-axis category order
-        fig1.update_xaxes(categoryorder='total descending')
-
-        # Rename x and y labels
-        fig1.update_xaxes(title_text='Counterparties')
-        fig1.update_yaxes(title_text='Quantity, bbls')
-
-        # Add values at the top of each bar
-        fig1.update_traces(texttemplate='%{y}', textposition='inside')
-
-        # Show the Plotly figure in Streamlit
-        st.plotly_chart(fig1, use_container_width=True, height=200)
-
-        # Convert the chart to an image
-        image = fig1.to_image(format="png", width=1200, height=550, scale=2.0)
-
-        # Save the image to a file
-        image_path = r"Resources\Plots\volume_dealer.png"
-        with open(image_path, "wb") as f:
-            f.write(image)
-
-
-
-    with col1:
-        df_refresh = pd.read_excel("PCHP Data.xlsx", "Sheet_Info")
-
-        # Assuming 'Date_today' contains a single date value in the DataFrame
-        date_today_value = df_refresh['Date_today'].iloc[0]
-
-        # Convert to a datetime object and format it
-        date_limit = datetime.strptime(str(date_today_value), "%Y-%m-%d %H:%M:%S.%f")
-
-        # Format the datetime object to the desired format
-        formatted_date_limit = date_limit.strftime("%d %b %Y")
-
-        df_limits = pd.read_excel("PCHP Data.xlsx","Credit_Limit_data")
-        st.subheader("Available Limits")
-        df_limits = pd.read_excel("PCHP Data.xlsx","Credit_Limit_data")
-        fig_limits = px.bar(df_limits, x='FO.Acronym', y=['Available Volume Limit', 'Volume Utilised'],
-                title='Volume Limit and Volume Utilized by Counterparty as of '+ formatted_date_limit,color_discrete_sequence=color_discrete_sequence)
-        
-        # Rename x and y labels
-        fig_limits.update_yaxes(title_text='Quantity, bbls')
-        # Add values at the top of each bar
-        fig_limits.update_traces(texttemplate='%{y}', textposition='inside')
-        #fig_limits .update_xaxes(categoryorder='total descending')
-        st.plotly_chart(fig_limits, use_container_width=True, height=200)       
-
-    with col2:
-        st.subheader("Monthly Volume Executed")
-        # Reshape the data to have 'Month' as a column and corresponding values
-        df_melted = pd.melt(filtered_df, id_vars=['Portfolio'], value_vars=['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'],
-                            var_name='Month', value_name='Value')
-
-        # Define the correct order of months
-        month_order = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
-
-        # Convert 'Month' to a categorical data type with the correct order
-        df_melted['Month'] = pd.Categorical(df_melted['Month'], categories=month_order, ordered=True)
-
-        # Group by Portfolio, Month, and Value type (Quantity or Premium) and sum the values
-        df_grouped = df_melted.groupby(['Portfolio', 'Month']).sum().reset_index()
-    
-        # Create a line chart for quantities
-        fig_quantity = px.bar(df_grouped, x='Month', y='Value', color='Portfolio',
-                            title='Quantity Comparison by Portfolio for Each Month',
-                            labels={'Value': 'Quantity'}, barmode='group')
-
-
-
-        # Add a horizontal line to indicate the targeted value
-        default_targeted_value =  int(232680000 /12)  # Adjust this value according to your targeted value
-        targeted_value = [default_targeted_value,default_targeted_value,default_targeted_value,
-                          default_targeted_value,default_targeted_value,default_targeted_value,
-                          default_targeted_value,default_targeted_value,default_targeted_value,
-                          default_targeted_value,default_targeted_value,default_targeted_value]
-
-        # Create a trace for the target line
-        target_trace = go.Scatter(x=df_grouped['Month'], y=[targeted_value],
-                                mode='lines', line=dict(color='orange', dash='dash'),
-                                name='FY2026 Mandated Volume')
-
-        # Add the target trace to the figure
-        fig_quantity.add_trace(target_trace)
-
-        # If FY2026 is selected, add a separate "Base Volume" line
-        if selected_portfolios == ['FY2026 PCHP']:
-            base_volume = 9750000
-            base_trace = go.Scatter(
-                x=df_grouped['Month'],
-                y=[base_volume] * len(df_grouped['Month']),
-                mode='lines',
-                line=dict(color='green', dash='dot'),
-                name=f"Base Volume ({base_volume:,.0f})"
-            )
-            fig_quantity.add_trace(base_trace)
-
-        if len(selected_portfolios) == 1:
-            # Calculate unexecuted volumes by subtracting executed volumes from the targeted value
-            df_grouped['Unexecuted'] = targeted_value - df_grouped['Value']
-
-            if selected_portfolios == ['FY2026 PCHP']:
-                # Create a stacked bar chart with custom colors
-                fig_stacked_bar = px.bar(df_grouped, x='Month', y=['Value', 'Unexecuted'],
-                                        title='Executed vs. Unexecuted Volumes by Portfolio for Each Month',
-                                        labels={'Value': 'Executed', 'Unexecuted': 'Unexecuted'},
-                                        barmode='stack',color_discrete_sequence=color_discrete_sequence)
-            else:
-                # Create a stacked bar chart with custom colors
-                fig_stacked_bar = px.bar(df_grouped, x='Month', y=['Value'], color='Portfolio',
-                                        title='Executed vs. Unexecuted Volumes by Portfolio for Each Month',
-                                        barmode='stack',color_discrete_sequence=color_discrete_sequence)
-
-
-            # Rename x and y labels
-            fig_stacked_bar.update_yaxes(title_text='Quantity, bbls')
-            # Add values at the top of each bar
-            fig_stacked_bar.update_traces(texttemplate='%{y}', textposition='inside')
-            # Set the color for "Unexecuted" bars to red
-            fig_stacked_bar.update_traces(marker_color='red', selector=dict(name='Unexecuted'))
-
-            st.plotly_chart(fig_stacked_bar, use_container_width=True, height=200)
-
-             # Convert the chart to an image
-            image = fig_stacked_bar.to_image(format="png", width=1200, height=350, scale=2.0)
-
-            # Save the image to a file
-            image_path = r"Resources\Plots\volume_executed.png"
-            with open(image_path, "wb") as f:
-                f.write(image)
-
+st.title("📊 PCHP Analytics Dashboard")
+
+# Session state for data
+if 'df' not in st.session_state:
+    st.session_state.df = None
+    st.session_state.data_loaded = False
+
+uri = st.secrets.db_credentials.url
+
+# Auto-fetch data on first load
+if not st.session_state.data_loaded:
+    with st.spinner("Fetching data from API..."):
+        try:
+            base_url = uri
+            auth = None
+            params = {
+                "BOName": "DASHBOARD FO",
+                "Fields": "*",
+                "Filter": "",
+                "OrderBy": ""
+            }
             
-        else:
-            st.write("No data available for visualization.")
-
-    with col2:
-        st.subheader("Counterparty Monthly Volume Executed")
-        # Reshape the data to have 'Month' as a column and corresponding values
-        df_melted = pd.melt(filtered_df, id_vars=['FO.Acronym'], value_vars=['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'],
-                            var_name='Month', value_name='Value')
-
-        # Define the correct order of months
-        month_order = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
-
-        # Convert 'Month' to a categorical data type with the correct order
-        df_melted['Month'] = pd.Categorical(df_melted['Month'], categories=month_order, ordered=True)
-
-        # Group by Portfolio, Month, and Value type (Quantity or Premium) and sum the values
-        df_grouped = df_melted.groupby(['FO.Acronym', 'Month']).sum().reset_index()
-
-        fig_quantity = go.Figure()
-
-        for i, counterparty in enumerate(df_grouped['FO.Acronym'].unique()):
-            df_counterparty = df_grouped[df_grouped['FO.Acronym'] == counterparty]
-            fig_quantity.add_trace(go.Bar(
-                x=df_counterparty['Month'],
-                y=df_counterparty['Value'],
-                name=counterparty,
-                marker_color=color_discrete_sequence[i % len(color_discrete_sequence_2)],
-                text=df_counterparty['Value'],  # Use y-values as text
-                textposition='inside',
-                texttemplate='%{text:.2s}',
-            ))
-
-        fig_quantity.update_layout(
-            title='Quantity Comparison by Counterparty for Each Month',
-            xaxis_title='Month',
-            yaxis_title='Quantity',
-            barmode='stack' 
-        )
-        
-        
-        st.plotly_chart(fig_quantity, use_container_width=True, height=200)
-
-         # Convert the chart to an image
-        image = fig_quantity.to_image(format="png", width=1200, height=600, scale=2.0)
-
-        # Save the image to a file
-        image_path = r"Resources\Plots\volume_cp.png"
-        with open(image_path, "wb") as f:
-            f.write(image)
-
-
-# Assuming selected_portfolio is a list
-if len(selected_portfolios) > 0 and 'All' not in selected_portfolios:
-    # Ensure only one element in selected_portfolio
-    selected_portfolio = [selected_portfolios[0]]
-
-def visualize_data(st, filtered_df, strike_price_column, strike_price_name):
-    if not filtered_df.empty:
-        # Remove rows with NaN values in the "FO.TransactionNumber" column
-        filtered_df = filtered_df.dropna(subset=['FO.TransactionNumber'])
-
-        # Remove rows with NaN values in the "Total Outstanding" column
-        filtered_df = filtered_df.dropna(subset=['Total Outstanding'])
-
-        # Check if "Total Outstanding" column is not empty
-        if not filtered_df['Total Outstanding'].empty:
-            # Remove rows with 0 values in the "Total Outstanding" column
-            filtered_df = filtered_df[filtered_df['Total Outstanding'] != 0]
-
-            # Extract relevant columns for visualization
-            months = ['O.January','O.February','O.March','O.April','O.May','O.June','O.July',
-                        'O.August','O.September','O.October','O.November','O.December']
-            monthly_data = filtered_df[months]
-
-            # Group by strike_price_column and sum the data
-            grouped_data = filtered_df.groupby(strike_price_column)[months].sum()
-
-            # Check if grouped_data is not empty
-            if not grouped_data.empty:
-                # Transpose the data for plotting
-                transposed_data = grouped_data.transpose()
-
-                # Plotting the data using Plotly
-                fig = go.Figure()
-
-
-
-                # Add bar trace for each Strike Price
-                for i, strike_price in enumerate(transposed_data.columns):
-                    fig.add_trace(go.Bar(
-                        x=transposed_data.index,
-                        y=transposed_data[strike_price],
-                        name=f'Strike Price {strike_price}',
-                        marker_color=color_discrete_sequence[i % len(color_discrete_sequence)],
-                        text=transposed_data[strike_price],  # Use y-values as text
-                        textposition='outside',
-                        texttemplate='%{text:.2s}',
-                    ))
-
-                fig.update_layout(
-                    xaxis_title="Months",
-                    yaxis_title="Total Outstanding Barrels, bbls",
-                    title='Total Volume according to Strike Levels',
-                    xaxis_tickangle=-45,
-                    barmode='stack',
-                    showlegend=True,
-                    legend=dict(title=strike_price_name, x=1, y=1),
+            response = requests.get(base_url, params=params, auth=auth, verify=False)
+            
+            if response.status_code == 200:
+                content = response.content.decode("utf-8-sig")
+                data = json.loads(content)
+                
+                if "OutputData" in data:
+                    df = pd.DataFrame(data["OutputData"])
+                    original_count = len(df)
                     
-                )
-                # Add values at the top of each bar
-                fig.update_traces(texttemplate='%{y:.2s}', textposition='inside')
+                    # Clean data
+                    df = df[pd.to_numeric(df["TradeNumber"], errors="coerce").gt(0)]
+                    cleaned_count = len(df)
+                    removed_count = original_count - cleaned_count
+                    
+                    # Fix Position_Quantity
+                    df["Position_Quantity"] = df.apply(
+                        lambda row: row["CashflowUSD"] / row["NetPremium"] 
+                                    if pd.isna(row["Position_Quantity"]) and row["NetPremium"] not in [0, None] 
+                                    else row["Position_Quantity"],
+                        axis=1
+                    )
+                    
+                    st.session_state.df = df
+                    st.session_state.data_loaded = True
+                    st.success(f"✅ Data loaded! {cleaned_count} rows ({removed_count} removed)")
+        except Exception as e:
+            st.error(f"❌ Error loading data: {str(e)}")
+            st.session_state.data_loaded = True
 
-                #custom_tick_labels = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+# Sidebar
+st.sidebar.header("🔄 Data Management")
 
-                # Set custom tick values and labels for the x-axis
-                #fig.update_xaxes(tickvals=transposed_data.index, ticktext=custom_tick_labels)
+# Refresh data button
+if st.sidebar.button("🔄 Refresh Data"):
+    st.session_state.data_loaded = False
+    st.rerun()
 
+# Portfolio selector in sidebar
+if st.session_state.df is not None:
+    df = st.session_state.df
+    st.sidebar.markdown("---")
+    st.sidebar.header("📁 Portfolio Selection")
+    portfolios = sorted(df["PortfolioName"].unique(), reverse=True)  # Sort descending to get latest first
+    selected_portfolio = st.sidebar.selectbox("Select Portfolio", portfolios, index=0)  # Default to first (latest)
+else:
+    selected_portfolio = None
 
-                # Display the Plotly chart
-                st.plotly_chart(fig, use_container_width=True)
-                
-
-                # Display table
-                #st.subheader("Volume Breakdown")
-                #st.dataframe(grouped_data,height=150, use_container_width = True)
-
-                # Convert the chart to an image
-                image = fig.to_image(format="png", width=1200, height=600, scale=2.0)
-
-                # Save the image to a file
-                image_path = rf"Resources\Plots\Outstanding_{strike_price_name}.png"
-                with open(image_path, "wb") as f:
-                    f.write(image)
-
-            else:
-                st.write("No data available for visualization.")
-        else:
-            st.write("No data available for visualization. Total Outstanding column is empty.")
+# Helper function
+def format_volume(val):
+    if abs(val) >= 1_000_000:
+        return f"{val/1_000_000:.1f}M"
+    elif abs(val) >= 1_000:
+        return f"{val/1_000:.1f}k"
     else:
-        st.write("No data available for visualization.")
+        return f"{val:.0f}"
 
-
-def strike_data(st, filtered_df, strike_price_column, strike_price_name):
-    if not filtered_df.empty:
-        # Remove rows with NaN values in the "FO.TransactionNumber" column
-        filtered_df = filtered_df.dropna(subset=['FO.TransactionNumber'])
-
-        # Remove rows with NaN values in the "Total Outstanding" column
-        filtered_df = filtered_df.dropna(subset=['Total Outstanding'])
-
-        # Check if "Total Outstanding" column is not empty
-        if not filtered_df['Total Outstanding'].empty:
-            # Remove rows with 0 values in the "Total Outstanding" column
-            filtered_df = filtered_df[filtered_df['Total Outstanding'] != 0]
-
-            # Extract relevant columns for visualization
-            months = ['O.January','O.February','O.March','O.April','O.May','O.June','O.July',
-                        'O.August','O.September','O.October','O.November','O.December']
-            monthly_data = filtered_df[months]
-
-            # Group by strike_price_column and sum the data
-            grouped_data = filtered_df.groupby(strike_price_column)[months].sum()
-
-            # Check if grouped_data is not empty
-            if not grouped_data.empty:
-                # Transpose the data for plotting
-                transposed_data = grouped_data.transpose()
-
-                return grouped_data
-                
-with tab3:
-    st.title("Mark to Market Data")
-    col1, col2 = st.columns((2))
+def format_excel_worksheet(worksheet, df):
+    """Format Excel worksheet with proper styling"""
+    from openpyxl.styles import numbers
     
-    # Check if "Total Outstanding" column is not empty
-    if not filtered_df['Total Outstanding'].empty:
-        with col1:
-            st.subheader("Outstanding Upper Strike Level")
-            visualize_data(st, filtered_df, 'FO.StrikePrice1', 'FO.StrikePrice1')
-        with col2:
-            st.subheader("Outstanding Lower Strike Level")
-            visualize_data(st, filtered_df, 'FO.StrikePrice2', 'FO.StrikePrice2')
-    else:
-        st.write("No data available for visualization.")
+    # Define styles
+    header_fill = PatternFill(start_color="00A19B", end_color="00A19B", fill_type="solid")
+    header_font = Font(bold=True, color="FFFFFF", size=11)
+    border_side = Side(style="thin", color="000000")
+    border = Border(left=border_side, right=border_side, top=border_side, bottom=border_side)
+    center_alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    
+    # Define columns that should NOT use accounting format
+    no_accounting_cols = ['TradeNumber', 'Position_Quantity', 'TradeDate', 'Settlement_DeliveryDate', 
+                          'StartFixDate', 'EndFixDate', 'Strip', 'BuyOrSell', 'DealerID',
+                          'OptionTypeLabel', 'StripTypeLabel', 'Portfolio']
+    
+    # Define date columns
+    date_cols = ['TradeDate', 'Settlement_DeliveryDate', 'StartFixDate', 'EndFixDate']
+    
+    # Define monthly quantity columns (YYYY-MM format without USD)
+    monthly_qty_cols = [col for col in df.columns if '-' in str(col) and 'USD' not in str(col)]
+    
+    # Format headers
+    for col_num, column_title in enumerate(df.columns, 1):
+        cell = worksheet.cell(row=1, column=col_num)
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = center_alignment
+        cell.border = border
+        
+        # Auto-adjust column width
+        column_letter = get_column_letter(col_num)
+        max_length = len(str(column_title))
+        for row_num in range(2, len(df) + 2):
+            cell_value = worksheet.cell(row=row_num, column=col_num).value
+            if cell_value:
+                max_length = max(max_length, len(str(cell_value)))
+        adjusted_width = min(max_length + 2, 50)
+        worksheet.column_dimensions[column_letter].width = adjusted_width
+    
+    # Format data cells
+    for row_num in range(2, len(df) + 2):
+        for col_num, column_title in enumerate(df.columns, 1):
+            cell = worksheet.cell(row=row_num, column=col_num)
+            cell.alignment = center_alignment
+            cell.border = border
+            
+            # Apply number formatting based on column type
+            if column_title in date_cols:
+                # Short date format (mm/dd/yyyy)
+                cell.number_format = numbers.FORMAT_DATE_XLSX14
+            elif column_title in no_accounting_cols or column_title in monthly_qty_cols:
+                # No special formatting for these columns
+                if isinstance(cell.value, (int, float)):
+                    cell.number_format = '#,##0.00'
+            else:
+                # Apply accounting format for all other numeric columns
+                if isinstance(cell.value, (int, float)):
+                    cell.number_format = '_($* #,##0.00_);_($* (#,##0.00);_($* "-"??_);_(@_)'
+    
+    return worksheet
 
-    st.divider()
-    st.title("BBG Option Price and Valuation")
+def load_brent_data(start_date, end_date):
+    """Load Brent Crude Futures data with fallback tickers using yfinance + curl_cffi session."""
     try:
-        # Read the Excel file
-        df_BBG = pd.read_excel("BBG_Output.xlsx", sheet_name=None)
-
-        # Get all sheet names
-        sheet_names = list(df_BBG.keys())
-
-        # Create a dropdown to select sheet
-        default_sheet = sheet_names[-1]  # Set the default value to the last sheet name
-        selected_sheet = st.selectbox("Select a sheet", sheet_names, index=len(sheet_names)-1)
-
-        # Show the selected sheet data
-        st.write("Data Refreshed:", selected_sheet)
-
-        # Rename the first column
-        df_selected_sheet = df_BBG[selected_sheet].rename(columns={df_BBG[selected_sheet].columns[0]: 'Strike Price'})
-
-        # Convert numerical values in the first column (except the last one) to integers with one decimal place
-        for i in range(len(df_selected_sheet) - 1):
-            value = df_selected_sheet.iloc[i, 0]
-            if isinstance(value, (int, float)):
-                df_selected_sheet.iloc[i, 0] = round(float(value), 1)
-
-        # Convert the rounded numerical values to integers
-        df_selected_sheet.iloc[:-1, 0] = df_selected_sheet.iloc[:-1, 0].astype(int)
-
-        st.dataframe(df_selected_sheet, use_container_width=True, hide_index=True)
+        # Chrome-impersonated session fixes SSL / Yahoo blocking
+        session = curl_requests.Session(impersonate="chrome", verify=False)
+        
+        # Common Yahoo tickers for Brent futures
+        tickers = ["BZ=F"]
+        
+        data = pd.DataFrame()
+        for ticker in tickers:
+            temp = yf.download(ticker, start=start_date, end=end_date, session=session, progress=False)
+            if not temp.empty:
+                data = temp.copy()
+                data["Ticker"] = ticker
+                break
+        
+        if data.empty:
+            return pd.DataFrame()
+        
+        # Handle MultiIndex columns (sometimes appears in yfinance)
+        if isinstance(data.columns, pd.MultiIndex):
+            data.columns = data.columns.get_level_values(0)
+        
+        data = data.reset_index()
+        data["Date"] = pd.to_datetime(data["Date"])
+        return data
+    
     except Exception as e:
-        st.error(f"Error: {e}")
+        st.error(f"Error loading Brent data: {str(e)}")
+        return pd.DataFrame()
 
-    st.divider()
-
-    def process_dataframe(df1, df2):
-        # Find common values in the first column of both dataframes
-        common_values = df1.iloc[:, 0].isin(df2.iloc[:, 0])
-        
-        # Filter df1 and df2 based on common values in the first column
-        df1_filtered = df1[df1.iloc[:, 0].isin(df2.iloc[:, 0])]
-        df2_filtered = df2[df2.iloc[:, 0].isin(df1.iloc[:, 0])]
-        
-        df1_filtered = df1_filtered.reset_index(drop=True)
-        df2_filtered = df2_filtered.reset_index(drop=True)
-        # Reindex df2 to match the row and column indices of df1
-        df2_reindexed = df2_filtered.reindex(index=df1_filtered.index, columns=df1_filtered.columns)
-       
-        # Multiply corresponding elements from df1 and df2
-        result_df = df1_filtered * df2_reindexed
-
-        # Assign the first column from df2 to the corresponding column in the result_df
-        result_df[df1_filtered.columns[0]] = df1_filtered[df1_filtered.columns[0]]
-
-        # Replace NaN values in result_df with 0
-        result_df.fillna(0, inplace=True)
-
-        return result_df
-
-    if selected_portfolios == ['FY2026 PCHP']:
-        # Process the first set of data
-        df1 = df_selected_sheet
-        df2 = strike_data(st, filtered_df, 'FO.StrikePrice1', 'FO.StrikePrice1')
-        df2.reset_index(inplace=True)
-        for column in df2.columns:
-            df2[column] = df2[column].astype(int)
-        df_Upper = process_dataframe(df1, df2)
-
-        # Process the second set of data
-        df1 = df_selected_sheet
-        df3 = strike_data(st, filtered_df, 'FO.StrikePrice2', 'FO.StrikePrice2')
-        df3.reset_index(inplace=True)
-        for column in df3.columns:
-            df3[column] = df3[column].astype(int)
-        df_Lower = process_dataframe(df1, df3)
-
-        # Display the results
-        col3, col4 = st.columns((2))
+# Main content
+if st.session_state.df is not None:
+    df = st.session_state.df
     
-        with col3:
+    # Tabs for different views
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
+        "📋 Summary Table", 
+        "📊 Dealer Volumes", 
+        "📅 Monthly Analysis",
+        "📉 Brent Price & Trades",
+        "📄 MTM Analysis",
+        "🎯 ITM Analysis",
+        "📈 Raw Data", 
+        "💾 Export"
+    ])
+    
+    # Tab 1: Portfolio Summary Table
+    with tab1:
+        st.header("Portfolio Trade Summary")
+        
+        def portfolio_summary(group):
+            num_trades = group["TradeNumber"].count()
+            total_pos_qty = group.loc[group["BuyOrSell"] == 1, "Position_Quantity"].sum()
+            abs_net_prem = group["AbsNetPremium"].sum()
             
-            # Transpose the DataFrame to have months as columns and Strike Price as index
-            df_Upper_transposed = df_Upper.set_index('Strike Price').transpose()
-
-            # Create a Plotly bar chart
-            fig = go.Figure()
-
-            # Add bar trace for each Strike Price
-            for i, strike_price in enumerate(df_Upper_transposed.columns):
-                fig.add_trace(go.Bar(
-                    x=df_Upper_transposed.index,
-                    y=df_Upper_transposed[strike_price],
-                    name=f'Strike Price {strike_price}',
-                    marker_color=color_discrete_sequence[i % len(color_discrete_sequence)],
-                    text=df_Upper_transposed[strike_price],  # Use y-values as text
-                    textposition='outside',
-                    showlegend=True,
-                    texttemplate='%{text:.2s}',
-                ))
-
-            # Update layout with axis labels and title
-            fig.update_layout(xaxis_title='Tenure',
-                            yaxis_title='Value, USD',
-                            title='Valuation of Upper Put Options',legend=dict(x=0, y=1.0))
+            # Weighted Protection Level
+            protection_leg = group.loc[group["BuyOrSell"] == 1]
+            if not protection_leg.empty and protection_leg["Position_Quantity"].sum() != 0:
+                prot_num = (protection_leg["Position_Quantity"] * protection_leg["StrikePrice1"]).sum()
+                prot_den = protection_leg["Position_Quantity"].sum()
+                weighted_protection = prot_num / prot_den
+            else:
+                weighted_protection = 0
             
-            # Add values at the top of each bar
-            fig.update_traces(texttemplate='%{y:.2s}', textposition='outside')
-
-            custom_tick_labels = ['January Outstanding', 'February Outstanding', 'March Outstanding', 'April Outstanding', 'May Outstanding', 'June Outstanding', 'July Outstanding', 'August Outstanding', 'September Outstanding', 'October Outstanding', 'November Outstanding', 'December Outstanding']
-
-
-            # Show plot
-            st.plotly_chart(fig)
-            # Print DataFrame
-            st.dataframe(df_Upper, height=150, use_container_width=True, hide_index=True)
-
-            # Convert the chart to an image
-            image = fig.to_image(format="png", width=1200, height=550, scale=2.0)
-
-            # Save the image to a file
-            image_path = r"Resources\Plots\upper_put_options.png"
-            with open(image_path, "wb") as f:
-                f.write(image)
-
-            # Set up the file name
-            filename = "plotly_chart.png"
-            # Convert the image to bytes
-            image_bytes_2 = io.BytesIO(image)
-            # Trigger the download
-            st.download_button(label="Download Image", data=image_bytes_2, file_name=filename, mime="image/png", key="download_button_1")
-        
-        with col4:
-            # Transpose the DataFrame to have months as columns and Strike Price as index
-            df_Lower_transposed = df_Lower.set_index('Strike Price').transpose()
-
-            # Create a Plotly bar chart
-            fig2 = go.Figure()
-
-
-            # Add bar trace for each Strike Price
-            for i, strike_price in enumerate(df_Lower_transposed.columns):
-                fig2.add_trace(go.Bar(
-                    x=df_Lower_transposed.index,
-                    y=df_Lower_transposed[strike_price],
-                    name=f'Strike Price {strike_price}',
-                    marker_color=color_discrete_sequence[i % len(color_discrete_sequence)],
-                    text=df_Lower_transposed[strike_price],  # Use y-values as text
-                    textposition='outside',showlegend=True,
-                    texttemplate='%{text:.2s}',
-                ))
-
-            # Update layout with axis labels and title
-            fig2.update_layout(xaxis_title='Tenure',
-                            yaxis_title='Value, USD',
-                            title='Valuation of Lower Put Options',legend=dict(x=0, y=1.0))
+            # Weighted Lower Level
+            strike1 = pd.to_numeric(group["StrikePrice1"], errors="coerce").fillna(0)
+            strike2 = pd.to_numeric(group["StrikePrice2"], errors="coerce").fillna(0)
             
-            custom_tick_labels = ['January Outstanding', 'February Outstanding', 'March Outstanding', 'April Outstanding', 'May Outstanding', 'June Outstanding', 'July Outstanding', 'August Outstanding', 'September Outstanding', 'October Outstanding', 'November Outstanding', 'December Outstanding']
-
-
-            # Show plot
-            st.plotly_chart(fig2)
-
-            # Print DataFrame
-            st.dataframe(df_Lower, height=150, use_container_width=True, hide_index=True)
-
-
-            # Convert the chart to an image
-            image = fig2.to_image(format="png", width=1200, height=550, scale=2.0)
-
-            # Save the image to a file
-            image_path = r"Resources\Plots\lower_put_options.png"
-            with open(image_path, "wb") as f:
-                f.write(image)
-            # Set up the file name
-            filename = "plotly_chart.png"
-            # Convert the image to bytes
-            image_bytes = io.BytesIO(image)
-
+            num_buy = (group.loc[group["BuyOrSell"] == 1, "Position_Quantity"] *
+                       strike2.loc[group["BuyOrSell"] == 1]).sum()
+            num_sell = (group.loc[group["BuyOrSell"] != 1, "Position_Quantity"] *
+                        strike1.loc[group["BuyOrSell"] != 1]).sum()
+            lower_num = num_buy + num_sell
             
-
-            # Trigger the download
-            st.download_button(label="Download Image", data=image_bytes, file_name=filename, mime="image/png", key="download_button_2")
-
-    else:
-        st.write('no data')
-
-    st.divider()
-
-     # Display PCHP Data
-    st.title("MTM Evaluation and Excel")
-
-    # Create a formatted copy of the filtered DataFrame to preserve the original data
-    formatted_df = filtered_df.copy()
-    formatted_df_option = df_selected_sheet.copy()
-
-
-        # Function to get list of months between two dates
-    def get_months_between_dates(start_date, end_date):
-        months = pd.date_range(start=start_date, end=end_date, freq='MS').strftime('%B').tolist()
-        return months
-
-    # Format date columns for better readability
-    date_columns = ['FO.TradeDate', 'FO.StartFixDate', 'FO.EndFixDate', 'FO.Settlement_DeliveryDate']
-    for column in date_columns:
-        formatted_df[column] = formatted_df[column].dt.strftime('%d %b %Y')
-
-    # Create a new column 'MonthsBetween' containing list of months between start and end fix dates
-    formatted_df['Tenure'] = formatted_df.apply(lambda row: get_months_between_dates(row['FO.StartFixDate'], row['FO.EndFixDate']), axis=1)
-
-    # Assuming 'formatted_df' is your DataFrame
-    formatted_df.rename(columns={'Row Labels':'Trade Number'}, inplace=True)
-
-    # Define a function to determine the option structure
-    def get_option_structure(row):
-        if row['FO.StrikePrice1'] != 0 and row['FO.StrikePrice2'] == 0:
-            return 'Vanilla Options'
-        elif row['FO.StrikePrice1'] != 0 and row['FO.StrikePrice2'] != 0:
-            return 'Put Spreads Options'
-        else:
-            return 'Unknown'
-
-    # Add a new column 'OptionStructure'
-    formatted_df['OptionStructure'] = formatted_df.apply(lambda row: get_option_structure(row), axis=1)
-
-
-    # Add a new column 'OptionStructure'
-    formatted_df['OptionStructure'] = formatted_df.apply(lambda row: get_option_structure(row), axis=1)
-
-    # Specify columns to display in the table
-    columns_to_display = ['Trade Number','Portfolio','FO.TradeDate','FO.DealerID', 'FO.CounterpartyName','FO.OptionTypeLabel','OptionStructure','FO.PremiumStrike1', 'FO.PremiumStrike2','FO.NetPremium', 'FO.Position_Quantity',
-                        'FO.StrikePrice1', 'FO.StrikePrice2', 'FO.StartFixDate', 'FO.EndFixDate','Tenor', 'FO.Settlement_DeliveryDate',
-                        'O.January','O.February','O.March','O.April','O.May','O.June','O.July',
-                        'O.August','O.September', 'O.October','O.November','O.December']
-
-    # Reset index to start from 1
-    formatted_df = formatted_df.reset_index(drop=True)
-
-    # Start index from 1
-    formatted_df.index = formatted_df.index + 1
-    formatted_df_option_E = formatted_df.copy()
-
-    # Find common months between both DataFrames
-    common_months = [col for col in formatted_df_option.columns if col.startswith('O.')]
-
-    # Iterate over each row in formatted_df
-    for index, row in formatted_df.iterrows():
-        # Get the Strike Price from formatted_df
-        strike_price_1 = row['FO.StrikePrice1']
-        strike_price_2 = row['FO.StrikePrice2']
-
-        # Find corresponding row in formatted_df_option
-        option_row_1 = formatted_df_option[formatted_df_option['Strike Price'] == strike_price_1]
-        option_row_2 = formatted_df_option[formatted_df_option['Strike Price'] == strike_price_2]
-
-        # Check if option_row is not empty
-        if not option_row_1.empty and not option_row_2.empty:
-            # Multiply the values in common months and update the row in formatted_df
-            for month in common_months:
-                formatted_df.at[index, month] = formatted_df.at[index, month] * round(option_row_1[month].iloc[0],3) - formatted_df.at[index, month] * round(option_row_2[month].iloc[0],3) 
-               
-
-    # Now the values in formatted_df are updated according to the conditions specified
-
-    # List of columns related to the months
-    month_columns = ['O.January','O.February','O.March','O.April','O.May','O.June','O.July',
-                        'O.August','O.September', 'O.October','O.November','O.December']
-    month_columns_value = ['January,USD', 'February,USD', 'March,USD', 'April,USD', 'May,USD', 'June,USD', 'July,USD', 'August,USD', 'September,USD', 'October,USD', 'November,USD', 'December,USD']
-    month_columns_bbls = ['January,bbls', 'February,bbls', 'March,bbls', 'April,bbls', 'May,bbls', 'June,bbls', 'July,bbls', 'August,bbls', 'September,bbls', 'October,bbls', 'November,bbls', 'December,bbls']
-
-    # Assuming 'formatted_df' is your DataFrame
-    formatted_df.rename(columns={
-        'O.January': 'January,USD',
-        'O.February': 'February,USD',
-        'O.March': 'March,USD',
-        'O.April': 'April,USD',
-        'O.May': 'May,USD',
-        'O.June': 'June,USD',
-        'O.July': 'July,USD',
-        'O.August': 'August,USD',
-        'O.September': 'September,USD',
-        'O.October': 'October,USD',
-        'O.November': 'November,USD',
-        'O.December': 'December,USD'
-    }, inplace=True)
-
-
-    
-    # Create new columns with default value 0 in formatted_df
-    for col in month_columns:
-        formatted_df[col] = 0
-
-    # Assign values from formatted_df_option_E to formatted_df
-    formatted_df[month_columns] = formatted_df_option_E[month_columns]  
-    columns_to_display.extend(month_columns_value)
-
-    formatted_df.rename(columns={
-        'O.January': 'January,bbls',
-        'O.February': 'February,bbls',
-        'O.March': 'March,bbls',
-        'O.April': 'April,bbls',
-        'O.May': 'May,bbls',
-        'O.June': 'June,bbls',
-        'O.July': 'July,bbls',
-        'O.August': 'August,bbls',
-        'O.September': 'September,bbls',
-        'O.October': 'October,bbls',
-        'O.November': 'November,bbls',
-        'O.December': 'December,bbls'
-    }, inplace=True)
-
-    columns_to_display = [f"{column.split('.')[1]},bbls" if column.startswith('O.') else column for column in columns_to_display]
-
-
-    # Assuming you have a DataFrame named 'data' containing your dataset
-    formatted_df['Value at inception, USD'] = formatted_df['FO.NetPremium'] * formatted_df['FO.Position_Quantity']
-    columns_to_display.append('Value at inception, USD')
-
-    # Create an empty list to store header names containing non-zero values
-    header_names = []
-
-    # Mapping dictionary for renaming column headers
-    column_mapping = {
-        'January,USD': 'O.January',
-        'February,USD': 'O.February',
-        'March,USD': 'O.March',
-        'April,USD': 'O.April',
-        'May,USD': 'O.May',
-        'June,USD': 'O.June',
-        'July,USD': 'O.July',
-        'August,USD': 'O.August',
-        'September,USD': 'O.September',
-        'October,USD': 'O.October',
-        'November,USD': 'O.November',
-        'December,USD': 'O.December'
-    }
-
-    def col_round(x, decimals=3):
-        if np.isnan(x):
-            return x  # Return NaN as is
-        factor = 10 ** decimals
-        x *= factor
-        frac = x - math.floor(x)
-        if frac < 0.5:
-            result = math.floor(x)
-        else:
-            result = math.ceil(x)
-        return result / factor
-
-    # Iterate through each row in the DataFrame
-    for index, row in formatted_df.iterrows():
-        # Initialize a list to store values for the current row
-        selected_values = []
-        
-        # Extract FO.StrikePrice1 from formatted_df
-        strike_price = row['FO.StrikePrice1']
-        
-        # Find the corresponding row(s) in df_selected_sheet based on Strike Price
-        selected_rows = df_selected_sheet[df_selected_sheet['Strike Price'] == strike_price]
-
-        selected_row_value = []
-        # If corresponding rows are found
-        if not selected_rows.empty:
-            # Iterate through each row in selected_rows
-            for selected_index, selected_row in selected_rows.iterrows():
-                # Iterate through each column in month_columns_value
-                for col in month_columns_value:
-                    # Check if there's any value in the current column
-                    if not pd.isnull(row[col]):
-                        # If there's a value, add the corresponding column name from column_mapping to the list
-                        selected_values.append(column_mapping[col])
-
-                try:
-                    # Extract values from selected_row for columns present in selected_values
-                    selected_row_values = selected_row[selected_values]
-                except KeyError:
-                    # Handle the KeyError here
-                    selected_row_values = None  # Or any other default value you want to return
-
-                
-               # Check if selected_row_values is not empty
-                if selected_row_values is not None and len(selected_row_values) > 0:
-                    # Calculate the average if multiple values exist
-                    avg_selected_row_values = np.mean(selected_row_values)
-                else:
-                    # Handle the case when selected_row_values is empty
-                    avg_selected_row_values = np.nan  # or any other default value or handling you prefer
-                
-                # Append the average to selected_row_value
-                selected_row_value.append(avg_selected_row_values)
-
-        
-
-        # Assign the calculated average values to the 'Market Upper Premium' column in the DataFrame
-        formatted_df.at[index, 'Market Upper Premium, USD'] = col_round(np.mean(selected_row_value),3)
-
-    # Append the name 'Market Upper Premium' to columns_to_display
-    columns_to_display.append('Market Upper Premium, USD')
-
-    # Iterate through each row in the DataFrame
-    for index, row in formatted_df.iterrows():
-        # Initialize a list to store values for the current row
-        selected_values = []
-        
-        # Extract FO.StrikePrice1 from formatted_df
-        strike_price = row['FO.StrikePrice2']
-        
-        # Find the corresponding row(s) in df_selected_sheet based on Strike Price
-        selected_rows = df_selected_sheet[df_selected_sheet['Strike Price'] == strike_price]
-
-        selected_row_value = []
-        # If corresponding rows are found
-        if not selected_rows.empty:
-            # Iterate through each row in selected_rows
-            for selected_index, selected_row in selected_rows.iterrows():
-                # Iterate through each column in month_columns_value
-                for col in month_columns_value:
-                    # Check if there's any value in the current column
-                    if not pd.isnull(row[col]):
-                        # If there's a value, add the corresponding column name from column_mapping to the list
-                        selected_values.append(column_mapping[col])
-
-                try:
-                    # Extract values from selected_row for columns present in selected_values
-                    selected_row_values = selected_row[selected_values]
-                except KeyError:
-                    # Handle the KeyError here
-                    selected_row_values = None  # Or any other default value you want to return
-                
-                               # Check if selected_row_values is not empty
-                if selected_row_values is not None and len(selected_row_values) > 0:
-                    # Calculate the average if multiple values exist
-                    avg_selected_row_values = round(np.mean(selected_row_values),3)
-                else:
-                    # Handle the case when selected_row_values is empty
-                    avg_selected_row_values = np.nan  # or any other default value or handling you prefer
-                
-                # Append the average to selected_row_value
-                selected_row_value.append(avg_selected_row_values)
-
-        # Assign the calculated average values to the 'Market Upper Premium' column in the DataFrame
-        formatted_df.at[index, 'Market Lower Premium, USD'] = col_round(np.mean(selected_row_value),3)
-
-    # Append the name 'Market Upper Premium' to columns_to_display
-    columns_to_display.append('Market Lower Premium, USD')
-
-    # Assuming you have a DataFrame named 'data' containing your dataset
-    formatted_df['Market Net Premium, USD'] = formatted_df['Market Upper Premium, USD'] - formatted_df['Market Lower Premium, USD']
-    columns_to_display.append('Market Net Premium, USD')
-
-
-
-
-    # Add a new column 'Total' containing the sum of values in the month columns
-    formatted_df['Current Value, USD'] = formatted_df[month_columns_value].sum(axis=1)
-    columns_to_display.append('Current Value, USD')
-
-
-
-    # Extract unique items from 'FO.EndFixDate'
-    unique_items = formatted_df['FO.EndFixDate'].unique()
-
-    # Define the color sequence
-    color_discrete_sequence_2 = [
-        "#763f98",  # Original color - R118 G063 B152
-        "#20419a",  # Original color - R032 G065 B154
-        "#fdb924",
-        "#00b1a9",  # Original color - R253 G185 B036
-        "#bfd730",  # Original color - R191 G215 B048
-        "#007b73",  # Shade of R000 G177 B169
-        "#3a1d4c",  # Shade of R118 G063 B152
-        "#101e4a",  # Shade of R032 G065 B154
-        "#cc8b1c",  # Shade of R253 G185 B036
-        "#8e9c1b",  # Shade of R191 G215 B048
-        "#b62e20",  # Background color - Similar theme color
-        "#ff6f61",  # Additional color 1
-        "#4ecdc4",  # Additional color 2
-        "#ff9f51",  # Additional color 3
-        "#2ab7ca"   # Additional color 4
-    ]
-
-
-    # Create a dictionary with unique items as keys and corresponding colors
-    Month_colors = dict(zip(unique_items, color_discrete_sequence_2[:len(unique_items)]))
-
-    st.subheader("Mark to Market result")
-    total_sum = formatted_df['Current Value, USD'].sum()
-    total_sum_incep = formatted_df['Value at inception, USD'].sum()
-
-    # Assuming formatted_df is your DataFrame
-    month_columns = [
-        'January,bbls', 'February,bbls', 'March,bbls', 'April,bbls', 
-        'May,bbls', 'June,bbls', 'July,bbls', 'August,bbls', 
-        'September,bbls', 'October,bbls', 'November,bbls', 'December,bbls'
-    ]
-
-    # Check if there's a value in any of the month columns
-    condition = formatted_df[month_columns].notnull().any(axis=1)
-
-    # Sum the 'Value at inception, USD' where the condition is True
-    total_outstanding_incep = formatted_df.loc[condition, 'Value at inception, USD'].sum()
-
-    col5,col6,col7,col8 = st.columns(4)
-    with col5:
-        st.metric(label='Total Inception Value, USD', value=str(f" {total_sum_incep:,.0f} "))
-    with col6:
-        st.metric(label='Outstanding Inception Value, USD', value=str(f" {total_outstanding_incep:,.0f} "))
-    with col7:
-        st.metric(label='Current Oustanding Value, USD', value=str(f" {total_sum:,.0f} "))
-    with col8:
-        st.metric(label='MTM Movements, USD', value=str(f" {total_sum - total_outstanding_incep   :,.0f} "))
-    
-    
-    # Calculate Volume executed versus Counterparty
-    st.subheader("Current Option Value per Counterparty")
-
-    # Create a checkbox for toggling colorization
-    use_color = st.checkbox('Separation by Expiration Date', value=True)
-    
-    # Add a column for custom colors based on DealerID
-    formatted_df['Color_2'] = formatted_df['FO.EndFixDate'].map(Month_colors)
-
-    if use_color:
-        # If the checkbox is checked, apply colorization
-        fig1 = px.histogram(formatted_df, x='FO.Acronym', y='Current Value, USD', color='FO.EndFixDate', 
-                           title='Value of Outstanding Volumes by expiration date', 
-                           color_discrete_map=Month_colors)
-        
-         # Update the x-axis category order
-        fig1.update_xaxes(categoryorder='total descending')
-
-        # Rename x and y labels
-        fig1.update_xaxes(title_text='Counterparties')
-        fig1.update_yaxes(title_text='Value, USD')
-
-        # Add values at the top of each bar
-        fig1.update_traces(texttemplate='%{y:.2s}', textposition='inside')
-
-        # Convert the chart to an image
-        image = fig1.to_image(format="png", width=1200, height=600, scale=2.0)
-
-        # Save the image to a file
-        image_path = r"Resources\Plots\volume_active_1.png"
-        with open(image_path, "wb") as f:
-            f.write(image)
-    else:
-        # If the checkbox is unchecked, don't apply colorization
-        fig1 = px.histogram(formatted_df, x='FO.Acronym', y='Current Value, USD', 
-                           title='Total Value of Outstanding Volume',color_discrete_sequence=["#00b1a9"])
-        
-         # Update the x-axis category order
-        fig1.update_xaxes(categoryorder='total descending')
-
-        # Rename x and y labels
-        fig1.update_xaxes(title_text='Counterparties')
-        fig1.update_yaxes(title_text='Value, USD')
-
-        # Add values at the top of each bar
-        fig1.update_traces(texttemplate='%{y:.2s}', textposition='inside')
-
-        # Convert the chart to an image
-        image = fig1.to_image(format="png", width=1200, height=600, scale=2.0)
-
-        # Save the image to a file
-        image_path = r"Resources\Plots\volume_active_2.png"
-        with open(image_path, "wb") as f:
-            f.write(image)
-
-
-    # Show the Plotly figure in Streamlit
-    st.plotly_chart(fig1, use_container_width=True, height=200)
-
-    
-
-    # Now the values in formatted_df_option are updated according to the conditions specified
-    with st.container():
-        # Show the formatted DataFrame using st.dataframe
-        st.dataframe(formatted_df[columns_to_display], height=500 ,use_container_width=True)
-
-    # buffer to use for excel writer
-    buffer = io.BytesIO()
-
-    from openpyxl import Workbook
-    from openpyxl.styles import NamedStyle, Alignment, PatternFill, Font
-
-    # Download Button
-    @st.cache_data
-    def convert_to_excel(formatted_df, df_selected_sheet):
-        # Create a buffer to hold the Excel file
-        buffer = BytesIO()
-
-        # Create Excel writer object
-        with pd.ExcelWriter(buffer, engine='xlsxwriter', date_format='dd/mm/yyyy') as writer:
-
-            # List of columns to apply date formatting
-            date_columns = ['FO.TradeDate', 'FO.StartFixDate', 'FO.EndFixDate', 'FO.Settlement_DeliveryDate']
-
-            # Loop through each column and apply formatting
-            for col in date_columns:
-            # Convert the text format to datetime format
-                formatted_df[col] = pd.to_datetime(formatted_df[col], format='%d %b %Y', errors='coerce')
-
-            # Write formatted_df to the first sheet
-            formatted_df.to_excel(writer, sheet_name='Portfolio Sum', index=False)
-
-            # Write df_selected_sheet to the second sheet
-            df_selected_sheet.to_excel(writer, sheet_name='Option Data', index=False)
-
-            # Get the xlsxwriter workbook and worksheet objects
-            workbook = writer.book
-            worksheet1 = writer.sheets['Portfolio Sum']
-            worksheet2 = writer.sheets['Option Data']
-
-            # Define cell formats
-            header_format = workbook.add_format({
-                'bold': True,
-                'text_wrap': True,
-                'valign': 'vcenter',
-                'align': 'center',
-                'border': 1,
-                'font_color': 'white',  # Set font color to white
-                'bg_color': '#38B09D'  # Set background color to 38B09D
+            den_buy = group.loc[(group["BuyOrSell"] == 1) & (strike2 != 0), "Position_Quantity"].sum()
+            den_sell = group.loc[group["BuyOrSell"] != 1, "Position_Quantity"].sum()
+            lower_den = den_buy + den_sell
+            
+            weighted_lower = lower_num / lower_den if lower_den != 0 else 0
+            
+            return pd.Series({
+                "Number_of_Trades": num_trades,
+                "Total_Position_Quantity": total_pos_qty,
+                "AbsNetPremium": abs_net_prem,
+                "Weighted_Protection_Level": weighted_protection,
+                "Weighted_Lower_Level": weighted_lower
             })
-            data_format = workbook.add_format({'text_wrap': True, 'valign': 'vcenter', 'align': 'center', 'border': 1})
-            date_format = workbook.add_format({'text_wrap': True, 'valign': 'vcenter', 'align': 'center', 'border': 1,'num_format': 'dd/mm/yyyy'})
-
-            # List of columns to apply date formatting
-            date_columns = ['FO.TradeDate', 'FO.StartFixDate', 'FO.EndFixDate', 'FO.Settlement_DeliveryDate']
-
-            # Loop through each column and apply formatting
-            for col in date_columns:
-                if col in formatted_df.columns:
-                    # Get column index
-                    col_index = formatted_df.columns.get_loc(col)
-                    
-                    # Write formatted dates to the worksheet
-                    for row_num in range(1, len(formatted_df) + 1):
-                        date_value = formatted_df.iloc[row_num - 1][col]
-                        worksheet1.write(row_num, col_index, date_value, date_format)
-                
-
-            # Apply formatting to first sheet (Portfolio Sum)
-            for col_num, value in enumerate(formatted_df.columns.values):
-                worksheet1.write(0, col_num, value, header_format)
-                worksheet1.set_column(col_num, col_num, 15, data_format)  # Set column width to 15
-
-            # Apply formatting to second sheet (Option Data)
-            for col_num, value in enumerate(df_selected_sheet.columns.values):
-                worksheet2.write(0, col_num, value, header_format)
-                worksheet2.set_column(col_num, col_num, 15, data_format)  # Set column width to 15
-
-            # Set row height in points (1 point ≈ 0.75 pixels)
-            row_height_in_points = 50
-            worksheet1.set_default_row(row_height_in_points)  # Set default row height for the first sheet
-            worksheet2.set_default_row(row_height_in_points)  # Set default row height for the second sheet
-
-            # Freeze the header row
-            worksheet1.freeze_panes(1, 0)  # Freeze the first row in the first sheet
-
-        return buffer.getvalue()
-
-
-    excel_data = convert_to_excel(formatted_df[columns_to_display], df_selected_sheet)
-
-    # Get today's date and format it
-    today_date = datetime.now().strftime('%d-%m-%Y')
-
-    # Download button to download Excel file
-    download_button = st.download_button(
-        label="Download data as Excel",
-        data=excel_data,
-        file_name=f"{today_date}_MTM.xlsx",  # Set file name with today's date
-        mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-    )
-
-with tabITM:
-    st.title("In-The-Money Data")
-    st.subheader("Average Monthly Brent Price")
-
-    # List of months
-    months = ["January", "February", "March", "April", "May", "June", 
-            "July", "August", "September", "October", "November", "December"]
-
-    # Add "Actual" columns
-    for month in months:
-        ITM_df[f"Actual {month}"] = None
-    
-
-    # Cache the loading of the Excel file
-    @st.cache_data
-    def load_data(file, sheet):
-        return pd.read_excel(file, sheet).round(3)
-
-    # Load the default dataset
-    default_file = "PCHP Data.xlsx"
-    default_sheet = "Actual_Average_Brent"
-    Actual_Average_Brent_df = load_data(default_file, default_sheet)
-
-    ## Let the user know they can edit the default dataset
-    st.write("You can edit the data in the table below. The default data is preloaded.")
-
-    # Editable table with default data preloaded
-    Actual_Average_Brent_df = st.data_editor(
-        Actual_Average_Brent_df,
-        num_rows="dynamic",
-        column_config={
-            "Year": st.column_config.TextColumn("Year"),
-            **{col: st.column_config.NumberColumn(col, format="%.3f") for col in Actual_Average_Brent_df.columns if col != "Year"}
-        },use_container_width=True
-    )
-
-    # Ensure the DataFrame is rounded to two decimal places
-    Actual_Average_Brent_df = Actual_Average_Brent_df.round(3)
-
-    # Display the final DataFrame
-    #st.write("### Final Data:")
-    #st.dataframe(Actual_Average_Brent_df, use_container_width=True)
-
-    # Create a mapping dictionary from Actual_Average_Brent_df
-    actuals_dict = {}
-    for index, row in Actual_Average_Brent_df.iterrows():
-        actuals_dict[row['Year']] = row.drop('Year').to_dict()
-
-    # Now, populate the 'Actual' columns in ITM_df
-    months = ["January", "February", "March", "April", "May", "June", 
-            "July", "August", "September", "October", "November", "December"]
-
-    for month in months:
-        column_name = f"Actual {month}"
-        ITM_df[column_name] = ITM_df['Portfolio'].apply(
-            lambda x: actuals_dict.get(x, {}).get(month, None)
-        )
-
-    # Updated list of months with _ITM
-    months_ITM = ["January_ITM", "February_ITM", "March_ITM", "April_ITM", "May_ITM", "June_ITM",
-                "July_ITM", "August_ITM", "September_ITM", "October_ITM", "November_ITM", "December_ITM"]
-
-    # Fill the DataFrame with calculated values for each month
-    for month in months_ITM:
-        actual_month = 'Actual ' + month.split('_')[0]
-        month_value = month.split('_')[0]
         
-        ITM_df[month] = ((ITM_df[actual_month] < ITM_df['FO.StrikePrice1']).astype(int) * (ITM_df['FO.StrikePrice1'] - ITM_df[actual_month]) * ITM_df[month_value])
-
-    # List of columns to remove
-    columns_to_remove = [
-        'Unnamed: 32', 'O.January', 'O.February', 'O.March', 'O.April', 'O.May', 
-        'O.June', 'O.July', 'O.August', 'O.September', 'O.October', 'O.November', 
-        'O.December', 'Total Outstanding'
-    ]
-
-    # Remove the columns from ITM_df
-    ITM_df = ITM_df.drop(columns=columns_to_remove, errors='ignore')
-
-    # Select only the FO.Acronym and *_ITM columns
-    columns_to_plot = ['FO.Acronym'] + [col for col in ITM_df.columns if col.endswith('_ITM')]
-
-    # Filter the DataFrame to include only the relevant columns
-    filtered_df = ITM_df[columns_to_plot]
-
-   # Melt the DataFrame to long format
-    ITM_long = filtered_df.melt(id_vars='FO.Acronym', 
-                                var_name='Month', 
-                                value_name='Value')
-
-    # Clean up the month names (removing '_ITM')
-    ITM_long['Month'] = ITM_long['Month'].str.replace('_ITM', '')
-
-    # Group by Month and FO.Acronym and sum the values
-    ITM_grouped = ITM_long.groupby(['Month', 'FO.Acronym'], as_index=False)['Value'].sum()
-
-    # Define the custom month order
-    month_order = ['January', 'February', 'March', 'April', 'May', 'June', 
-                'July', 'August', 'September', 'October', 'November', 'December']
-
-    # Ensure 'Month' is a categorical type with the defined order
-    ITM_grouped['Month'] = pd.Categorical(ITM_grouped['Month'], categories=month_order, ordered=True)
-
-    # Create the stacked bar chart with the custom order
-    fig = px.bar(ITM_grouped, 
-                x='Month', 
-                y='Value', 
-                color='FO.Acronym', 
-                title='Monthly ITM Distribution by Counterparty',
-                labels={'Month': 'Month', 'Value': 'ITM Value', 'FO.Acronym': 'Acronym'},
-                barmode='stack',
-                category_orders={'Month': month_order})  # Enforce custom month order
-
-    # Add values at the top of each bar
-    fig.update_traces(texttemplate='%{y}', textposition='inside')
-
-    # Display in Streamlit
-    st.plotly_chart(fig, use_container_width=True)
-
-    # Pivot the DataFrame to reshape it
-    pivot_df = ITM_grouped.pivot(index='FO.Acronym', columns='Month', values='Value')
-
-    # Fill NaN values with 0 (optional)
-    pivot_df = pivot_df.fillna(0)
-
-    # Add a "Total" column for each row (horizontal sum)
-    pivot_df['Total'] = pivot_df.sum(axis=1)
-
-    # Add a "Total" row for each column (vertical sum)
-    pivot_df.loc['Total'] = pivot_df.sum()
-
-    # Display the pivot table in Streamlit
-    st.dataframe(pivot_df, use_container_width=True,height=500)
-
-
-
-
-with tab4:
+        summary = df.groupby("PortfolioName", sort=False).apply(portfolio_summary).reset_index()
+        
+        # Sort by portfolio name descending (latest/highest year first)
+        summary = summary.sort_values("PortfolioName", ascending=False)
+        
+        # Format for display
+        summary_display = summary.copy()
+        summary_display["Number_of_Trades"] = summary_display["Number_of_Trades"].apply(lambda x: f"{x:,}")
+        summary_display["Total_Position_Quantity"] = summary_display["Total_Position_Quantity"].apply(lambda x: f"{x:,.0f}")
+        summary_display["AbsNetPremium"] = summary_display["AbsNetPremium"].apply(lambda x: f"${x:,.2f}")
+        summary_display["Weighted_Protection_Level"] = summary_display["Weighted_Protection_Level"].apply(lambda x: f"{x:.2f}")
+        summary_display["Weighted_Lower_Level"] = summary_display["Weighted_Lower_Level"].apply(lambda x: f"{x:.2f}")
+        
+        summary_display.columns = [
+            "Portfolio Name",
+            "Number of Trades",
+            "Total Position Quantity",
+            "Total Cost",
+            "Weighted Protection Level",
+            "Weighted Lower Level"
+        ]
+        
+        st.dataframe(summary_display, use_container_width=True, hide_index=True)
+        
+        # Position Quantity by Portfolio and Acronym
+        st.subheader("Position Quantity by Portfolio and Acronym")
+        
+        # Pivot table: rows = PortfolioName, columns = Acronym, values = sum(Position_Quantity)
+        pivot_df = df.pivot_table(
+            index="PortfolioName",
+            columns="Acronym",
+            values="Position_Quantity",
+            aggfunc="sum",
+            fill_value=0
+        )
+        
+        # Sort columns alphabetically and rows by portfolio name descending
+        pivot_df = pivot_df.reindex(sorted(pivot_df.columns), axis=1)
+        pivot_df = pivot_df.sort_index(ascending=False)
+        
+        # Format all pivot table values
+        formatted_pivot = pivot_df.applymap(lambda x: format_volume(x) if x != 0 else "0")
+        
+        # Reset index to make PortfolioName a column
+        formatted_pivot = formatted_pivot.reset_index()
+        
+        st.dataframe(formatted_pivot, use_container_width=True, hide_index=True)
     
+    # Tab 2: Dealer Volumes Chart
+    with tab2:
+        st.header(f"Dealer Volumes - {selected_portfolio}")
+        
+        if selected_portfolio:
+            # Filter portfolio and BuyOrSell == 1
+            portfolio_df = df[df["PortfolioName"] == selected_portfolio].copy()
+            portfolio_df["BuyOrSell"] = pd.to_numeric(portfolio_df["BuyOrSell"], errors="coerce")
+            portfolio_df = portfolio_df[portfolio_df["BuyOrSell"] == 1].copy()
+            
+            dealers = portfolio_df["DealerID"].unique()
+            agg_df = portfolio_df.groupby(
+                ["Acronym", "DealerID"], 
+                as_index=False, 
+                dropna=False
+            )["Position_Quantity"].sum()
+            
+            full_index = pd.MultiIndex.from_product(
+                [agg_df["Acronym"].unique(), dealers], 
+                names=["Acronym", "DealerID"]
+            )
+            agg_df = agg_df.set_index(["Acronym", "DealerID"]).reindex(full_index, fill_value=0).reset_index()
+            
+            totals = agg_df.groupby("Acronym", as_index=False)["Position_Quantity"].sum()
+            totals = totals.sort_values("Position_Quantity", ascending=False)
+            sorted_acronyms = totals["Acronym"].tolist()
+            
+            # Create figure
+            fig = make_subplots(
+                rows=2, cols=1,
+                shared_xaxes=True,
+                vertical_spacing=0.15,
+                subplot_titles=("Dealer Volumes by Acronym", "Total Volume by Acronym"),
+                row_heights=[0.6, 0.4]
+            )
+            
+            # Add dealer traces
+            for dealer in dealers:
+                dealer_data = agg_df[agg_df["DealerID"] == dealer].copy()
+                dealer_data["Acronym"] = pd.Categorical(
+                    dealer_data["Acronym"], 
+                    categories=sorted_acronyms, 
+                    ordered=True
+                )
+                dealer_data = dealer_data.sort_values("Acronym")
+                
+                fig.add_trace(
+                    go.Bar(
+                        x=dealer_data["Acronym"],
+                        y=dealer_data["Position_Quantity"],
+                        name=str(dealer),
+                        text=[format_volume(v) if v != 0 else "" for v in dealer_data["Position_Quantity"]],
+                        textposition="inside",
+                        textfont=dict(size=10),
+                        hovertemplate="<b>%{x}</b><br>Dealer: " + str(dealer) + "<br>Volume: %{y:,.0f}<extra></extra>"
+                    ),
+                    row=1, col=1
+                )
+            
+            # Add total trace
+            totals_sorted = totals.copy()
+            totals_sorted["Acronym"] = pd.Categorical(
+                totals_sorted["Acronym"], 
+                categories=sorted_acronyms, 
+                ordered=True
+            )
+            totals_sorted = totals_sorted.sort_values("Acronym")
+            
+            fig.add_trace(
+                go.Bar(
+                    x=totals_sorted["Acronym"],
+                    y=totals_sorted["Position_Quantity"],
+                    name="Total",
+                    marker=dict(color="#2C3E50"),
+                    text=[format_volume(v) if v != 0 else "" for v in totals_sorted["Position_Quantity"]],
+                    textposition="inside",
+                    textfont=dict(size=11, color="white"),
+                    hovertemplate="<b>%{x}</b><br>Total Volume: %{y:,.0f}<extra></extra>"
+                ),
+                row=2, col=1
+            )
+            
+            fig.update_layout(
+                barmode="group",
+                title=dict(
+                    text=f"Dealer Volumes & Totals - {selected_portfolio}",
+                    x=0.5,
+                    xanchor="center"
+                ),
+                height=800,
+                hovermode="x unified",
+                legend=dict(
+                    orientation="v",
+                    yanchor="top",
+                    y=0.99,
+                    xanchor="left",
+                    x=1.02
+                ),
+                xaxis=dict(title="Acronym"),
+                xaxis2=dict(title="Acronym"),
+                yaxis=dict(title="Volume"),
+                yaxis2=dict(title="Volume")
+            )
+            
+            st.plotly_chart(fig, use_container_width=True)
     
-    def create_download_link(val, filename):
-        b64 = base64.b64encode(val)  # val looks like b'...'
-        return f'<a href="data:application/octet-stream;base64,{b64.decode()}" download="{filename}.pdf">Download file</a>'
+    # Tab 3: Monthly Analysis
+    with tab3:
+        st.header(f"Monthly Analysis - {selected_portfolio}")
+        
+        if selected_portfolio:
+            # Filter portfolio and BuyOrSell == 1
+            portfolio_df = df[df["PortfolioName"] == selected_portfolio].copy()
+            portfolio_df["BuyOrSell"] = pd.to_numeric(portfolio_df["BuyOrSell"], errors="coerce")
+            portfolio_df = portfolio_df[portfolio_df["BuyOrSell"] == 1].copy()
+            
+            portfolio_df["StartFixDate"] = pd.to_datetime(portfolio_df["StartFixDate"])
+            portfolio_df["EndFixDate_MaturityDate"] = pd.to_datetime(portfolio_df["EndFixDate_MaturityDate"])
+            
+            # Prepare monthly breakdown
+            monthly_rows = []
+            for _, row in portfolio_df.iterrows():
+                start = row["StartFixDate"].replace(day=1)
+                end = row["EndFixDate_MaturityDate"].replace(day=1)
+                months_diff = (end.year - start.year) * 12 + (end.month - start.month) + 1
+                monthly_quantity = row["Position_Quantity"] / months_diff
 
-    def create_letterhead(pdf, WIDTH):
-        pdf.image(r"Resources/Blue Modern Business Letterhead.jpg", 0, 0, WIDTH)
+                for m in range(months_diff):
+                    month = start + pd.DateOffset(months=m)
+                    monthly_rows.append({
+                        "Month": month,
+                        "DealerID": row["DealerID"],
+                        "StrikePrice1": row["StrikePrice1"],
+                        "Acronym": row["Acronym"],
+                        "Monthly_Position_Quantity": monthly_quantity
+                    })
 
-    def create_title(title, pdf):
-        # Add main title
-        pdf.set_font('Helvetica', 'b', 20)  
-        pdf.ln(40)
-        pdf.write(5, title)
-        pdf.ln(10)
-        # Add date of report
-        pdf.set_font('Helvetica', '', 14)
-        pdf.set_text_color(r=128,g=128,b=128)
-        today = time.strftime("%d/%m/%Y")
-        pdf.write(4, f'{today}')
-        # Add line break
-        pdf.ln(10)
+            monthly_df = pd.DataFrame(monthly_rows)
+            
+            # Chart 1: DealerID breakdown
+            st.subheader("Monthly Position by DealerID")
+            agg_dealer = monthly_df.groupby(["Month", "DealerID"], as_index=False)["Monthly_Position_Quantity"].sum()
+            
+            fig_dealer = go.Figure()
+            for dealer in sorted(agg_dealer["DealerID"].unique()):
+                data = agg_dealer[agg_dealer["DealerID"] == dealer]
+                fig_dealer.add_trace(go.Bar(
+                    x=data["Month"],
+                    y=data["Monthly_Position_Quantity"],
+                    name=str(dealer),
+                    text=[format_volume(v) for v in data["Monthly_Position_Quantity"]],
+                    textposition="inside",
+                    textfont=dict(size=10),
+                    hovertemplate="<b>%{x|%b %Y}</b><br>DealerID: " + str(dealer) +
+                                  "<br>Volume: %{y:,.0f}<extra></extra>"
+                ))
 
-    def write_to_pdf(pdf, words):
-        # Set text colour, font size, and font type
-        pdf.set_text_color(r=0,g=0,b=0)
-        pdf.set_font('Helvetica', '', 12)
-        pdf.write(5, words)
+            fig_dealer.update_layout(
+                barmode="stack",
+                height=600,
+                hovermode="x unified",
+                legend=dict(orientation="v", yanchor="top", y=0.99, xanchor="left", x=1.02),
+                xaxis=dict(title="Month"),
+                yaxis=dict(title="Volume")
+            )
+            st.plotly_chart(fig_dealer, use_container_width=True)
+            
+            # Chart 2: StrikePrice1 breakdown (already filtered for BuyOrSell=1)
+            st.subheader("Monthly Position by StrikePrice1")
+            
+            monthly_rows_strike = []
+            for _, row in portfolio_df.iterrows():
+                start = row["StartFixDate"].replace(day=1)
+                end = row["EndFixDate_MaturityDate"].replace(day=1)
+                months_diff = (end.year - start.year) * 12 + (end.month - start.month) + 1
+                monthly_quantity = row["Position_Quantity"] / months_diff
 
-    class PDF(FPDF):
-        def footer(self):
-            self.set_y(-15)
-            self.set_font('Helvetica', 'I', 8)
-            self.set_text_color(128)
-            self.cell(0, 10, 'Page ' + str(self.page_no()), 0, 0, 'C')
+                for m in range(months_diff):
+                    month = start + pd.DateOffset(months=m)
+                    monthly_rows_strike.append({
+                        "Month": month,
+                        "StrikePrice1": row["StrikePrice1"],
+                        "Monthly_Position_Quantity": monthly_quantity
+                    })
 
-    # Global Variables
-    TITLE = "Portfolio Commodity Hedging Program Report"
-    WIDTH = 210
-    HEIGHT = 297
+            monthly_df_strike = pd.DataFrame(monthly_rows_strike)
+            agg_strike = monthly_df_strike.groupby(["Month", "StrikePrice1"], as_index=False)["Monthly_Position_Quantity"].sum()
 
-    # Create PDF
-    pdf = PDF() # A4 (210 by 297 mm)
+            fig_strike = go.Figure()
+            for strike in sorted(agg_strike["StrikePrice1"].unique()):
+                data = agg_strike[agg_strike["StrikePrice1"] == strike]
+                fig_strike.add_trace(go.Bar(
+                    x=data["Month"],
+                    y=data["Monthly_Position_Quantity"],
+                    name=str(strike),
+                    text=[format_volume(v) for v in data["Monthly_Position_Quantity"]],
+                    textposition="inside",
+                    textfont=dict(size=10),
+                    hovertemplate="<b>%{x|%b %Y}</b><br>StrikePrice1: " + str(strike) +
+                                  "<br>Volume: %{y:,.0f}<extra></extra>"
+                ))
 
-    # Add Page
-    pdf.add_page()
+            fig_strike.update_layout(
+                barmode="stack",
+                height=600,
+                hovermode="x unified",
+                legend=dict(orientation="v", yanchor="top", y=0.99, xanchor="left", x=1.02),
+                xaxis=dict(title="Month"),
+                yaxis=dict(title="Volume")
+            )
+            st.plotly_chart(fig_strike, use_container_width=True)
+            
+            # Chart 3: Acronym breakdown with total
+            st.subheader("Monthly Position by Acronym")
+            agg_acronym = monthly_df.groupby(["Month", "Acronym"], as_index=False)["Monthly_Position_Quantity"].sum()
+            total_acronym = monthly_df.groupby("Month", as_index=False)["Monthly_Position_Quantity"].sum()
 
-    # Add lettterhead and title
-    create_letterhead(pdf, WIDTH)
-    create_title(TITLE, pdf)
-    pdf.image(r"Resources\Plots\Brent.png", x=5, y=pdf.get_y(), w=200)
+            fig_acronym = make_subplots(
+                rows=2, cols=1,
+                shared_xaxes=True,
+                vertical_spacing=0.1,
+                subplot_titles=("Monthly Position Quantity by Acronym", "Total Monthly Position Quantity")
+            )
+
+            for acronym in sorted(agg_acronym["Acronym"].unique()):
+                data = agg_acronym[agg_acronym["Acronym"] == acronym]
+                fig_acronym.add_trace(go.Bar(
+                    x=data["Month"],
+                    y=data["Monthly_Position_Quantity"],
+                    name=str(acronym),
+                    text=[format_volume(v) for v in data["Monthly_Position_Quantity"]],
+                    textposition="inside",
+                    textfont=dict(size=10),
+                    hovertemplate="<b>%{x|%b %Y}</b><br>Acronym: " + str(acronym) +
+                                  "<br>Volume: %{y:,.0f}<extra></extra>"
+                ), row=1, col=1)
+
+            fig_acronym.add_trace(go.Bar(
+                x=total_acronym["Month"],
+                y=total_acronym["Monthly_Position_Quantity"],
+                name="Total",
+                marker_color="#2C3E50",
+                text=[format_volume(v) for v in total_acronym["Monthly_Position_Quantity"]],
+                textposition="inside",
+                textfont=dict(size=11, color="white"),
+                hovertemplate="<b>%{x|%b %Y}</b><br>Total Volume: %{y:,.0f}<extra></extra>"
+            ), row=2, col=1)
+
+            fig_acronym.update_layout(
+                barmode="stack",
+                height=800,
+                hovermode="x unified",
+                legend=dict(orientation="v", yanchor="top", y=0.99, xanchor="left", x=1.02),
+                xaxis=dict(title="Month"),
+                yaxis=dict(title="Volume"),
+                yaxis2=dict(title="Volume")
+            )
+            st.plotly_chart(fig_acronym, use_container_width=True)
     
-    pdf.image(r"Resources\Plots\volume_executed.png", x=5, y=150, w=200)
-    pdf.image(r"Resources\Plots\Execution_table.png", x=5, y=200, w=200)
+    # Tab 4: Brent Price & Trades
+    with tab4:
+        st.header(f"Brent Price & Trade Dates - {selected_portfolio}")
+        
+        if selected_portfolio:
+            # Filter by selected portfolio
+            portfolio_df = df[df["PortfolioName"] == selected_portfolio].copy()
+            
+            # Convert TradeDate to datetime
+            portfolio_df["TradeDate"] = pd.to_datetime(portfolio_df["TradeDate"], errors="coerce")
+            trade_dates = portfolio_df["TradeDate"].dropna().sort_values().unique()
+            
+            if len(trade_dates) > 0:
+                # Get date range with buffer
+                start_date = (pd.to_datetime(trade_dates.min()) - timedelta(days=30)).strftime('%Y-%m-%d')
+                end_date = (pd.to_datetime(trade_dates.max()) + timedelta(days=30)).strftime('%Y-%m-%d')
+                
+                # Fetch Brent crude oil data
+                with st.spinner("Fetching Brent crude oil prices..."):
+                    brent = load_brent_data(start_date, end_date)
+                    
+                    if not brent.empty:
+                        # Prepare monthly breakdown for trade date analysis
+                        portfolio_df["StartFixDate"] = pd.to_datetime(portfolio_df["StartFixDate"])
+                        portfolio_df["EndFixDate_MaturityDate"] = pd.to_datetime(portfolio_df["EndFixDate_MaturityDate"])
+                        
+                        # Create monthly breakdown per trade
+                        trade_monthly_breakdown = []
+                        for _, row in portfolio_df.iterrows():
+                            start = row["StartFixDate"].replace(day=1)
+                            end = row["EndFixDate_MaturityDate"].replace(day=1)
+                            months_diff = (end.year - start.year) * 12 + (end.month - start.month) + 1
+                            monthly_quantity = row["Position_Quantity"] / months_diff
+                            
+                            for m in range(months_diff):
+                                month = start + pd.DateOffset(months=m)
+                                trade_monthly_breakdown.append({
+                                    "TradeDate": row["TradeDate"],
+                                    "Month": month,
+                                    "Monthly_Position_Quantity": monthly_quantity
+                                })
+                        
+                        trade_monthly_df = pd.DataFrame(trade_monthly_breakdown)
+                        trade_monthly_df["TradeDate"] = pd.to_datetime(trade_monthly_df["TradeDate"])
+                        
+                        # Group by TradeDate and Month to get quantities
+                        trade_month_summary = trade_monthly_df.groupby(["TradeDate", "Month"])["Monthly_Position_Quantity"].sum().reset_index()
+                        
+                        # Calculate position quantities per trade date (total)
+                        trade_date_quantities = portfolio_df.groupby("TradeDate")["Position_Quantity"].sum().reset_index()
+                        trade_date_quantities["TradeDate"] = pd.to_datetime(trade_date_quantities["TradeDate"])
+                        
+                        # Create figure
+                        fig_brent = go.Figure()
+                        
+                        # Add Brent price line
+                        fig_brent.add_trace(go.Scatter(
+                            x=brent["Date"],
+                            y=brent["Close"],
+                            mode="lines",
+                            name="Brent Price",
+                            line=dict(color="#2E86AB", width=2),
+                            hovertemplate="<b>%{x|%b %d, %Y}</b><br>Price: $%{y:.2f}<extra></extra>"
+                        ))
+                        
+                        # Add markers for trade dates with monthly breakdown
+                        trade_prices = []
+                        trade_quantities = []
+                        trade_monthly_info = []
+                        valid_trade_dates = []
+                        
+                        for _, row in trade_date_quantities.iterrows():
+                            trade_date = row["TradeDate"]
+                            quantity = row["Position_Quantity"]
+                            
+                            # Find closest Brent price for this trade date
+                            closest_idx = brent[brent["Date"] <= trade_date]["Date"].idxmax() if not brent[brent["Date"] <= trade_date].empty else None
+                            if closest_idx is not None:
+                                trade_prices.append(brent.loc[closest_idx, "Close"])
+                                trade_quantities.append(quantity)
+                                valid_trade_dates.append(trade_date)
+                                
+                                # Get monthly breakdown for this trade date
+                                monthly_data = trade_month_summary[trade_month_summary["TradeDate"] == trade_date]
+                                monthly_breakdown = "<br>".join([
+                                    f"  {row['Month'].strftime('%b %Y')}: {format_volume(row['Monthly_Position_Quantity'])}"
+                                    for _, row in monthly_data.iterrows()
+                                ])
+                                trade_monthly_info.append(monthly_breakdown)
+                        
+                        fig_brent.add_trace(go.Scatter(
+                            x=valid_trade_dates,
+                            y=trade_prices,
+                            mode="markers",
+                            name="Trade Dates",
+                            marker=dict(
+                                size=10,
+                                color="#A23B72",
+                                symbol="diamond",
+                                line=dict(color="white", width=2)
+                            ),
+                            text=[format_volume(q) for q in trade_quantities],
+                            customdata=[[q, info] for q, info in zip(trade_quantities, trade_monthly_info)],
+                            hovertemplate="<b>Trade Date: %{x|%b %d, %Y}</b><br>" +
+                                        "Brent Price: $%{y:.2f}<br>" +
+                                        "Total Position: %{customdata[0]:,.0f}<br>" +
+                                        "<b>Monthly Breakdown:</b><br>%{customdata[1]}<extra></extra>"
+                        ))
+                        
+                        fig_brent.update_layout(
+                            title=f"Brent Crude Oil Price with Trade Dates - {selected_portfolio}",
+                            xaxis_title="Date",
+                            yaxis_title="Price (USD per Barrel)",
+                            height=600,
+                            hovermode="x unified",
+                            showlegend=True,
+                            legend=dict(
+                                orientation="h",
+                                yanchor="bottom",
+                                y=1.02,
+                                xanchor="right",
+                                x=1
+                            )
+                        )
+                        
+                        st.plotly_chart(fig_brent, use_container_width=True)
+                    else:
+                        st.warning("Unable to fetch Brent price data")
+            else:
+                st.warning("No valid trade dates found for this portfolio")
     
-    pdf.ln(100)
+    # Tab 5: Trade Details
+    with tab5:
+        st.header(f"Trade Details - {selected_portfolio}")
+        
+        if selected_portfolio:
+            # Option to include/exclude expired volumes
+            include_expired = st.checkbox(
+                "Include expired volumes (past months)",
+                value=False,
+                help="If unchecked, monthly quantities for past months will be set to zero"
+            )
+            
+            # Filter by selected portfolio
+            trade_details_df = df[df["PortfolioName"] == selected_portfolio].copy()
+            
+            # Select specific columns
+            columns_to_display = [
+                "TradeNumber",
+                "PortfolioName",
+                "TradeDate",
+                "Settlement_DeliveryDate",
+                "StrikePrice1",
+                "StrikePrice2",
+                "NetPremium",
+                "AbsNetPremium",
+                "BuyOrSell",
+                "Position_Quantity",
+                "DealerID",
+                "OptionTypeLabel",
+                "StripTypeLabel",
+                "StartFixDate",
+                "EndFixDate_MaturityDate"
+            ]
+            
+            # Check which columns exist in the dataframe
+            available_columns = [col for col in columns_to_display if col in trade_details_df.columns]
+            
+            # Select only available columns
+            trade_details_display = trade_details_df[available_columns].copy()
+            
+            # Calculate monthly breakdown for each trade
+            trade_details_display["StartFixDate"] = pd.to_datetime(trade_details_display["StartFixDate"])
+            trade_details_display["EndFixDate_MaturityDate"] = pd.to_datetime(trade_details_display["EndFixDate_MaturityDate"])
+            
+            # Add Strip column
+            trade_details_display["Strip"] = trade_details_display.apply(
+                lambda row: (row["EndFixDate_MaturityDate"].replace(day=1) - row["StartFixDate"].replace(day=1)).days > 31,
+                axis=1
+            )
+            
+            # Get current month for comparison
+            current_month = pd.Timestamp.now().replace(day=1)
+            
+            # Create a list to store all month columns
+            all_months = set()
+            trade_monthly_data = {}
+            
+            for idx, row in trade_details_display.iterrows():
+                start = row["StartFixDate"].replace(day=1)
+                end = row["EndFixDate_MaturityDate"].replace(day=1)
+                months_diff = (end.year - start.year) * 12 + (end.month - start.month) + 1
+                monthly_quantity = row["Position_Quantity"] / months_diff
+                
+                trade_monthly_data[idx] = {}
+                for m in range(months_diff):
+                    month = start + pd.DateOffset(months=m)
+                    month_str = month.strftime('%Y-%m')
+                    all_months.add(month_str)
+                    
+                    # If not including expired volumes and month is in the past, set to 0
+                    if not include_expired and month < current_month:
+                        trade_monthly_data[idx][month_str] = 0
+                    else:
+                        trade_monthly_data[idx][month_str] = monthly_quantity
+            
+            # Sort months chronologically
+            sorted_months = sorted(list(all_months))
+            
+            # Add monthly columns to the dataframe
+            for month in sorted_months:
+                trade_details_display[month] = trade_details_display.index.map(
+                    lambda idx: trade_monthly_data.get(idx, {}).get(month, 0)
+                )
+            
+            # Rename columns for better display
+            column_rename = {
+                "PortfolioName": "Portfolio",
+                "EndFixDate_MaturityDate": "EndFixDate"
+            }
+            trade_details_display = trade_details_display.rename(columns=column_rename)
+            
+            # Reorder columns to place Strip after EndFixDate
+            cols = trade_details_display.columns.tolist()
+            if "Strip" in cols and "EndFixDate" in cols:
+                # Remove Strip from its current position
+                cols.remove("Strip")
+                # Insert Strip right after EndFixDate
+                endfix_idx = cols.index("EndFixDate")
+                cols.insert(endfix_idx + 1, "Strip")
+                trade_details_display = trade_details_display[cols]
+            
+            # Sort by TradeNumber ascending (most recent first)
+            if "TradeNumber" in trade_details_display.columns:
+                trade_details_display = trade_details_display.sort_values("TradeNumber", ascending=True)
+            
+            # Format numeric columns
+            numeric_columns = ["StrikePrice1", "StrikePrice2", "NetPremium", "Position_Quantity", "AbsNetPremium"] + sorted_months
+            for col in numeric_columns:
+                if col in trade_details_display.columns:
+                    trade_details_display[col] = trade_details_display[col].apply(
+                        lambda x: f"{x:,.2f}" if pd.notna(x) and x != 0 else "0"
+                    )
+            
+            st.dataframe(trade_details_display, use_container_width=True, height=600)
+            st.info(f"Total trades for {selected_portfolio}: {len(trade_details_display):,} | Monthly columns: {len(sorted_months)}")
+            
+            st.markdown("---")
+            
+            # Create two columns for template download and upload
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.subheader("Download Strike Price Template")
+                
+                if sorted_months:
+                    # Get unique StrikePrice1 and StrikePrice2 values
+                    unique_strike1 = sorted(trade_details_df["StrikePrice1"].dropna().unique())
+                    unique_strike2 = sorted(trade_details_df["StrikePrice2"].dropna().unique())
+                    
+                    # Combine and get unique strikes
+                    all_strikes = sorted(set(list(unique_strike1) + list(unique_strike2)))
+                    
+                    # Filter months based on include_expired checkbox
+                    if include_expired:
+                        template_months = sorted_months
+                    else:
+                        # Only include current month and future months
+                        template_months = [m for m in sorted_months if pd.to_datetime(m + "-01") >= current_month]
+                    
+                    if template_months:
+                        # Create empty template dataframe
+                        template_df = pd.DataFrame(index=all_strikes, columns=template_months)
+                        template_df.index.name = "Strike Price"
+                        
+                        # Fill with empty strings
+                        template_df = template_df.fillna("")
+                        
+                        # Convert to Excel with formatting
+                        output = BytesIO()
+                        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                            template_df.to_excel(writer, sheet_name='Strike Prices')
+                            
+                            # Format the worksheet
+                            worksheet = writer.sheets['Strike Prices']
+                            format_excel_worksheet(worksheet, template_df.reset_index())
+                        
+                        output.seek(0)
+
+                        today = datetime.now().strftime("%Y-%m-%d")
+                        
+                        st.download_button(
+                            label="📥 Download Template",
+                            data=output,
+                            file_name=f"{today}_strike_price_template_{selected_portfolio}.xlsx",
+                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                        )
+                        
+                        st.info(f"📊 {len(all_strikes)} strikes × {len(template_months)} months")
+                    else:
+                        st.warning("No future months available for template")
+                else:
+                    st.warning("No monthly data available")
+            
+            with col2:
+                st.subheader("Upload Filled Template")
+                
+                uploaded_template = st.file_uploader(
+                    "Upload your filled Excel template",
+                    type=['xlsx', 'xls'],
+                    key=f"upload_template_{selected_portfolio}"
+                )
+                
+                if uploaded_template is not None:
+                    try:
+                        # Read the uploaded Excel file
+                        uploaded_df = pd.read_excel(uploaded_template, sheet_name='Strike Prices', index_col=0)
+                        st.success("✅ File uploaded successfully!")
+                        st.info(f"📊 {len(uploaded_df)} strikes × {len(uploaded_df.columns)} months")
+                    except Exception as e:
+                        st.error(f"Error reading file: {str(e)}")
+                        uploaded_df = None
+                else:
+                    uploaded_df = None
+            
+            # Display uploaded data if available
+            if uploaded_df is not None:
+                st.markdown("---")
+                st.subheader("Uploaded Strike Price Data")
+                
+                # Format the dataframe for better display
+                display_df = uploaded_df.copy()
+                
+                # Replace NaN with empty string for display
+                display_df = display_df.fillna("")
+                
+                st.dataframe(display_df, use_container_width=True, height=400)
+                
+                # Option to download the uploaded data as CSV
+                csv = display_df.to_csv()
+                st.download_button(
+                    label="📥 Download as CSV",
+                    data=csv,
+                    file_name=f"strike_price_data_{selected_portfolio}.csv",
+                    mime="text/csv"
+                )
+                
+                # Calculate combined trade details with pricing
+                st.markdown("---")
+                st.subheader("Trade Details with Pricing Calculations")
+                
+                # Create a copy of the original trade details for calculation
+                combined_df = trade_details_df[available_columns].copy()
+                combined_df["StartFixDate"] = pd.to_datetime(combined_df["StartFixDate"])
+                combined_df["EndFixDate_MaturityDate"] = pd.to_datetime(combined_df["EndFixDate_MaturityDate"])
+                
+                # Add Strip column
+                combined_df["Strip"] = combined_df.apply(
+                    lambda row: (row["EndFixDate_MaturityDate"].replace(day=1) - row["StartFixDate"].replace(day=1)).days > 31,
+                    axis=1
+                )
+                
+                # Calculate if each trade is expired (all months are in the past)
+                combined_df["Is_Expired"] = combined_df.apply(
+                    lambda row: row["EndFixDate_MaturityDate"].replace(day=1) < current_month, 
+                    axis=1
+                )
+                
+                # Add monthly quantity columns first
+                for idx, row in combined_df.iterrows():
+                    start = row["StartFixDate"].replace(day=1)
+                    end = row["EndFixDate_MaturityDate"].replace(day=1)
+                    months_diff = (end.year - start.year) * 12 + (end.month - start.month) + 1
+                    monthly_quantity = row["Position_Quantity"] / months_diff
+                    
+                    for m in range(months_diff):
+                        month = start + pd.DateOffset(months=m)
+                        month_str = month.strftime('%Y-%m')
+                        if month_str not in combined_df.columns:
+                            combined_df[month_str] = 0.0
+                        
+                        # If not including expired volumes and month is in the past, set to 0
+                        if not include_expired and month < current_month:
+                            combined_df.at[idx, month_str] = 0
+                        else:
+                            combined_df.at[idx, month_str] = monthly_quantity
+                
+                # Calculate USD columns for each month
+                for month_col in sorted_months:
+                    if month_col in uploaded_df.columns:
+                        usd_col_name = f"{month_col} (USD)"
+                        combined_df[usd_col_name] = 0.0
+                        
+                        for idx, row in combined_df.iterrows():
+                            if month_col in combined_df.columns and combined_df.at[idx, month_col] != 0:
+                                monthly_qty = combined_df.at[idx, month_col]
+                                strike1 = row["StrikePrice1"]
+                                strike2 = row["StrikePrice2"]
+                                buy_or_sell = row["BuyOrSell"]
+                                
+                                # Get price for Strike1 from uploaded template
+                                price1 = 0
+                                try:
+                                    if pd.notna(strike1) and strike1 in uploaded_df.index:
+                                        price1_val = uploaded_df.at[strike1, month_col]
+                                        price1 = float(price1_val) if pd.notna(price1_val) and price1_val != "" else 0
+                                except:
+                                    price1 = 0
+                                
+                                # Calculate Strike1 component: Quantity × Price (NOT Strike × Quantity × Price)
+                                strike1_value = monthly_qty * price1
+                                
+                                # Get price for Strike2 from uploaded template (if exists)
+                                price2 = 0
+                                strike2_value = 0
+                                if pd.notna(strike2) and strike2 != 0:
+                                    try:
+                                        if strike2 in uploaded_df.index:
+                                            price2_val = uploaded_df.at[strike2, month_col]
+                                            price2 = float(price2_val) if pd.notna(price2_val) and price2_val != "" else 0
+                                    except:
+                                        price2 = 0
+                                    
+                                    # Calculate Strike2 component: Quantity × Price (NOT Strike × Quantity × Price)
+                                    strike2_value = monthly_qty * price2
+                                
+                                # Calculate final USD value
+                                # If BuyOrSell is None/NaN/0, negate the value
+                                if pd.isna(buy_or_sell) or buy_or_sell == 0 or buy_or_sell == "":
+                                    usd_value = -(strike1_value - strike2_value)
+                                else:
+                                    usd_value = strike1_value - strike2_value
+                                
+                                combined_df.at[idx, usd_col_name] = usd_value
+                
+                # Rename columns for display
+                column_rename = {
+                    "PortfolioName": "Portfolio",
+                    "EndFixDate_MaturityDate": "EndFixDate"
+                }
+                combined_df = combined_df.rename(columns=column_rename)
+                
+                # Sort by TradeNumber ascending
+                if "TradeNumber" in combined_df.columns:
+                    combined_df = combined_df.sort_values("TradeNumber", ascending=True)
+                
+                # Reorder columns: base columns, then monthly quantities, then USD columns
+                base_cols = ["TradeNumber", "Portfolio", "TradeDate", "Settlement_DeliveryDate", 
+                            "StrikePrice1", "StrikePrice2", "NetPremium", "AbsNetPremium", "BuyOrSell",
+                            "Position_Quantity", "DealerID", "OptionTypeLabel", "StripTypeLabel",
+                            "StartFixDate", "EndFixDate", "Strip"]
+                
+                # Get columns that exist in the dataframe
+                existing_base_cols = [col for col in base_cols if col in combined_df.columns]
+                
+                # Get monthly quantity columns (sorted chronologically)
+                monthly_qty_cols = sorted([col for col in combined_df.columns if col in sorted_months])
+                
+                # Get USD columns (sorted chronologically by extracting the month part)
+                usd_cols = [col for col in combined_df.columns if "(USD)" in col]
+                usd_cols_sorted = sorted(usd_cols, key=lambda x: x.replace(" (USD)", ""))
+                
+                # Calculate Current Outstanding Value (sum of all USD columns)
+                combined_df["Current Outstanding Value, USD"] = combined_df[usd_cols_sorted].sum(axis=1)
+                
+                # Calculate Current Premium/Barrel
+                combined_df["Current Premium/Barrel"] = combined_df.apply(
+                    lambda row: row["Current Outstanding Value, USD"] / row["Position_Quantity"] 
+                    if row["Position_Quantity"] != 0 else 0,
+                    axis=1
+                )
+                
+                # Calculate metrics for Mark to Market
+                total_inception_value = combined_df["AbsNetPremium"].sum()
+                outstanding_inception_value = combined_df[~combined_df["Is_Expired"]]["AbsNetPremium"].sum()
+                current_outstanding_value = combined_df["Current Outstanding Value, USD"].sum()
+                mtm_movements = current_outstanding_value - outstanding_inception_value
+                mtm_percentage = (mtm_movements / outstanding_inception_value * 100) if outstanding_inception_value != 0 else 0
+                
+                # Display Mark to Market metrics
+                st.subheader("Mark to Market Result")
+                
+                col_mtm1, col_mtm2, col_mtm3, col_mtm4 = st.columns(4)
+                
+                with col_mtm1:
+                    st.metric(
+                        label="Total Inception Value, USD",
+                        value=f"${total_inception_value:,.2f}"
+                    )
+                
+                with col_mtm2:
+                    st.metric(
+                        label="Outstanding Inception Value, USD",
+                        value=f"${outstanding_inception_value:,.2f}"
+                    )
+                
+                with col_mtm3:
+                    st.metric(
+                        label="Current Outstanding Value, USD",
+                        value=f"${current_outstanding_value:,.2f}"
+                    )
+                
+                with col_mtm4:
+                    st.metric(
+                        label="MTM Movements, USD",
+                        value=f"${mtm_movements:,.2f}",
+                        delta=f"{mtm_percentage:+.2f}%"
+                    )
+                
+                st.markdown("---")
+                
+                # Combine in order: base columns, monthly quantities, USD values, outstanding value, premium per barrel
+                ordered_columns = existing_base_cols + monthly_qty_cols + usd_cols_sorted + ["Current Outstanding Value, USD", "Current Premium/Barrel"]
+                
+                # Reorder the dataframe (exclude Is_Expired from display)
+                combined_df = combined_df[ordered_columns]
+                
+                # Format numeric columns for display
+                display_combined = combined_df.copy()
+                
+                # Format base numeric columns
+                base_numeric = ["StrikePrice1", "StrikePrice2", "NetPremium", "Position_Quantity", "AbsNetPremium"]
+                for col in base_numeric:
+                    if col in display_combined.columns:
+                        display_combined[col] = display_combined[col].apply(
+                            lambda x: f"{x:,.2f}" if pd.notna(x) else ""
+                        )
+                
+                # Format monthly quantity columns
+                for month_col in sorted_months:
+                    if month_col in display_combined.columns:
+                        display_combined[month_col] = display_combined[month_col].apply(
+                            lambda x: f"{x:,.2f}" if pd.notna(x) and x != 0 else "0"
+                        )
+                
+                # Format USD columns
+                usd_columns = [col for col in display_combined.columns if "(USD)" in col or col == "Current Outstanding Value, USD"]
+                for col in usd_columns:
+                    display_combined[col] = display_combined[col].apply(
+                        lambda x: f"${x:,.2f}" if pd.notna(x) else "$0.00"
+                    )
+                
+                # Format Current Premium/Barrel with 3 decimal places
+                if "Current Premium/Barrel" in display_combined.columns:
+                    display_combined["Current Premium/Barrel"] = display_combined["Current Premium/Barrel"].apply(
+                        lambda x: f"{x:.3f}" if pd.notna(x) else "0.000"
+                    )
+                
+                st.dataframe(display_combined, use_container_width=True, height=600)
+                st.info(f"Total trades: {len(display_combined):,} | Calculated USD columns: {len(usd_columns)}")
+                
+                # Download option for combined data
+                output_combined = BytesIO()
+                with pd.ExcelWriter(output_combined, engine='openpyxl') as writer:
+                    combined_df.to_excel(writer, sheet_name='Trade Details with Pricing', index=False)
+                    
+                    # Format the worksheet
+                    worksheet = writer.sheets['Trade Details with Pricing']
+                    format_excel_worksheet(worksheet, combined_df)
+                
+                output_combined.seek(0)
+                
+                st.download_button(
+                    label="📥 Download Complete Trade Details with Pricing (Excel)",
+                    data=output_combined,
+                    file_name=f"trade_details_with_pricing_{selected_portfolio}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
+        else:
+            st.warning("Please select a portfolio from the sidebar")
     
-    #add page_2
-    pdf.add_page()
-    create_letterhead(pdf,WIDTH)
-    create_title(TITLE,pdf)
-    pdf.image(r"Resources\Plots\volume_cp.png", x=5, y=pdf.get_y(), w=200)
-    pdf.image(r"Resources\Plots\volume_dealer.png", x=5, y=150, w=200)
+    # Tab 6: ITM Analysis
+    with tab6:
+        st.header(f"ITM Analysis - {selected_portfolio}")
+        
+        if selected_portfolio:
+            # Filter by selected portfolio
+            itm_df = df[df["PortfolioName"] == selected_portfolio].copy()
+            itm_df["BuyOrSell"] = pd.to_numeric(itm_df["BuyOrSell"], errors="coerce")
+            
+            itm_df["StartFixDate"] = pd.to_datetime(itm_df["StartFixDate"])
+            itm_df["EndFixDate_MaturityDate"] = pd.to_datetime(itm_df["EndFixDate_MaturityDate"])
+            
+            # Create monthly breakdown for ALL trades (both buy and sell)
+            monthly_rows = []
+            for _, row in itm_df.iterrows():
+                start = row["StartFixDate"].replace(day=1)
+                end = row["EndFixDate_MaturityDate"].replace(day=1)
+                months_diff = (end.year - start.year) * 12 + (end.month - start.month) + 1
+                monthly_quantity = row["Position_Quantity"] / months_diff
+                
+                # Determine leg type and strike price
+                is_buy_leg = row["BuyOrSell"] == 1
+                
+                if is_buy_leg:
+                    # Buy leg: StrikePrice1 for protection, StrikePrice2 for sell side
+                    buy_strike = row["StrikePrice1"]
+                    sell_strike = row["StrikePrice2"]
+                else:
+                    # Sell leg (BuyOrSell = NaN/None/0): Only StrikePrice1
+                    buy_strike = None
+                    sell_strike = row["StrikePrice1"]
+                
+                for m in range(months_diff):
+                    month = start + pd.DateOffset(months=m)
+                    
+                    # Add buy leg entry if applicable
+                    if buy_strike is not None and pd.notna(buy_strike):
+                        monthly_rows.append({
+                            "Month": month.strftime('%Y-%m'),
+                            "StrikePrice": buy_strike,
+                            "Leg_Type": "Buy Leg",
+                            "Monthly_Position_Quantity": monthly_quantity
+                        })
+                    
+                    # Add sell leg entry if applicable
+                    if sell_strike is not None and pd.notna(sell_strike):
+                        monthly_rows.append({
+                            "Month": month.strftime('%Y-%m'),
+                            "StrikePrice": sell_strike,
+                            "Leg_Type": "Sell Leg",
+                            "Monthly_Position_Quantity": monthly_quantity
+                        })
+            
+            monthly_itm_df = pd.DataFrame(monthly_rows)
+            
+            if not monthly_itm_df.empty:
+                # DataFrame 1: Buy Leg (BuyOrSell = 1) - StrikePrice1
+                st.subheader("Buy Leg (Protection) - Position Quantity by Month")
+                
+                buy_leg_df = monthly_itm_df[monthly_itm_df["Leg_Type"] == "Buy Leg"]
+                
+                if not buy_leg_df.empty:
+                    pivot_buy = buy_leg_df.pivot_table(
+                        index="StrikePrice",
+                        columns="Month",
+                        values="Monthly_Position_Quantity",
+                        aggfunc="sum",
+                        fill_value=0
+                    )
+                    
+                    # Sort columns chronologically
+                    pivot_buy = pivot_buy[sorted(pivot_buy.columns)]
+                    
+                    # Format numbers
+                    formatted_buy = pivot_buy.applymap(lambda x: f"{x:,.0f}" if x != 0 else "0")
+                    
+                    st.dataframe(formatted_buy, use_container_width=True)
+                else:
+                    st.info("No buy leg trades found for this portfolio")
+                
+                # DataFrame 2: Sell Leg (BuyOrSell = None/0) - StrikePrice2
+                st.subheader("Sell Leg - Position Quantity by Month")
+                
+                sell_leg_df = monthly_itm_df[monthly_itm_df["Leg_Type"] == "Sell Leg"]
+                
+                if not sell_leg_df.empty:
+                    pivot_sell = sell_leg_df.pivot_table(
+                        index="StrikePrice",
+                        columns="Month",
+                        values="Monthly_Position_Quantity",
+                        aggfunc="sum",
+                        fill_value=0
+                    )
+                    
+                    # Sort columns chronologically
+                    pivot_sell = pivot_sell[sorted(pivot_sell.columns)]
+                    
+                    # Format numbers
+                    formatted_sell = pivot_sell.applymap(lambda x: f"{x:,.0f}" if x != 0 else "0")
+                    
+                    st.dataframe(formatted_sell, use_container_width=True)
+                else:
+                    st.info("No sell leg trades found for this portfolio")
+                
+                # DataFrame 3: Monthly Average Brent Price
+                st.subheader("Monthly Average Brent Price (Editable)")
+                
+                # Get all years from the position data
+                all_months_in_data = sorted(monthly_itm_df["Month"].unique())
+                
+                if all_months_in_data:
+                    # Extract years from position data
+                    years_in_data = sorted(set([int(m.split('-')[0]) for m in all_months_in_data]))
+                    
+                    # Always start from 2021 and include all years up to max year in data
+                    start_year = 2021
+                    end_year = max(years_in_data)
+                    all_years = list(range(start_year, end_year + 1))
+                    
+                    # Fetch historical Brent data
+                    start_date = pd.Timestamp(f"{start_year}-01-01")
+                    end_date = pd.Timestamp.today()
+                    
+                    with st.spinner("Fetching Brent crude oil prices..."):
+                        brent = load_brent_data(start_date.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d'))
+                        
+                        # Create empty dataframe with all years
+                        month_order = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", 
+                                    "Aug", "Sep", "Oct", "Nov", "Dec"]
+                        
+                        # Initialize with empty dataframe
+                        brent_pivot = pd.DataFrame(index=all_years, columns=month_order)
+                        
+                        if not brent.empty:
+                            # Convert to datetime
+                            brent["Date"] = pd.to_datetime(brent["Date"])
+                            
+                            # Extract year and month names
+                            brent["Year"] = brent["Date"].dt.year
+                            brent["Month"] = brent["Date"].dt.strftime('%b')
+                            
+                            # Calculate monthly averages by year
+                            monthly_avg = brent.groupby(["Year", "Month"])["Close"].mean().reset_index()
+                            
+                            # Pivot so each row = year, each column = month
+                            brent_pivot_temp = monthly_avg.pivot(index="Year", columns="Month", values="Close")
+                            
+                            # Update the main pivot with actual data where available
+                            for year in brent_pivot_temp.index:
+                                if year in brent_pivot.index:
+                                    for month in month_order:
+                                        if month in brent_pivot_temp.columns:
+                                            brent_pivot.at[year, month] = brent_pivot_temp.at[year, month]
+                        
+                        # Set index name
+                        brent_pivot.index.name = "Year"
+                        
+                        # Convert to float and handle NaN
+                        brent_pivot = brent_pivot.astype(float)
+                        
+                        # Display editable dataframe
+                        st.info("💡 You can edit the cells below to input future prices or adjust historical prices")
+                        
+                        edited_brent = st.data_editor(
+                            brent_pivot,
+                            use_container_width=True,
+                            num_rows="fixed",
+                            column_config={
+                                month: st.column_config.NumberColumn(
+                                    month,
+                                    format="$%.2f",
+                                    min_value=0,
+                                    max_value=500
+                                ) for month in month_order
+                            }
+                        )
+                        
+                        # Option to download edited Brent prices
+                        if edited_brent is not None:
+                            brent_csv = edited_brent.to_csv()
+                            st.download_button(
+                                label="📥 Download Brent Prices (CSV)",
+                                data=brent_csv,
+                                file_name=f"brent_prices_{selected_portfolio}.csv",
+                                mime="text/csv"
+                            )
+                            
+                            st.markdown("---")
+                            
+                            # Button to calculate payoffs
+                            if st.button("🧮 Calculate Payoffs", type="primary"):
+                                # Convert edited_brent to month-year format for matching
+                                brent_monthly_dict = {}
+                                month_to_num = {
+                                    "Jan": "01", "Feb": "02", "Mar": "03", "Apr": "04",
+                                    "May": "05", "Jun": "06", "Jul": "07", "Aug": "08",
+                                    "Sep": "09", "Oct": "10", "Nov": "11", "Dec": "12"
+                                }
+                                
+                                for year in edited_brent.index:
+                                    for month_name in month_order:
+                                        month_num = month_to_num[month_name]
+                                        month_str = f"{year}-{month_num}"
+                                        brent_price = edited_brent.at[year, month_name]
+                                        if pd.notna(brent_price):
+                                            brent_monthly_dict[month_str] = float(brent_price)
+                                
+                                # DataFrame 4: Buy Leg Payoff
+                                st.subheader("Buy Leg Payoff - max(Brent - Strike, 0) × Position")
+                                
+                                buy_leg_df = monthly_itm_df[monthly_itm_df["Leg_Type"] == "Buy Leg"]
+                                
+                                if not buy_leg_df.empty:
+                                    # Create payoff matrix
+                                    buy_payoff_rows = []
+                                    
+                                    for strike in sorted(buy_leg_df["StrikePrice"].unique()):
+                                        row_data = {"Strike Price": strike}
+                                        
+                                        for month in sorted(buy_leg_df["Month"].unique()):
+                                            # Get position for this strike and month
+                                            position = buy_leg_df[
+                                                (buy_leg_df["StrikePrice"] == strike) & 
+                                                (buy_leg_df["Month"] == month)
+                                            ]["Monthly_Position_Quantity"].sum()
+                                            
+                                            # Get Brent price for this month
+                                            brent_price = brent_monthly_dict.get(month, None)
+                                            
+                                            # Calculate payoff: max(Brent - Strike, 0) × Position
+                                            if brent_price is not None and position > 0:
+                                                payoff = max(strike - brent_price , 0) * position
+                                            else:
+                                                payoff = 0
+                                            
+                                            row_data[month] = payoff
+                                        
+                                        buy_payoff_rows.append(row_data)
+                                    
+                                    buy_payoff_df = pd.DataFrame(buy_payoff_rows)
+                                    buy_payoff_df = buy_payoff_df.set_index("Strike Price")
+                                    
+                                    # Add Brent Price row
+                                    brent_price_row = {}
+                                    for month in sorted(buy_leg_df["Month"].unique()):
+                                        brent_price = brent_monthly_dict.get(month, None)
+                                        brent_price_row[month] = brent_price if brent_price is not None else 0
+                                    brent_price_series = pd.Series(brent_price_row, name="Brent Price")
+                                    
+                                    # Add Total row
+                                    total_row = buy_payoff_df.sum()
+                                    total_row.name = "TOTAL"
+                                    
+                                    # Combine: Brent Price, strikes, then TOTAL
+                                    buy_payoff_df = pd.concat([
+                                        brent_price_series.to_frame().T,
+                                        buy_payoff_df, 
+                                        total_row.to_frame().T
+                                    ])
+                                    
+                                    # Format numbers - different format for Brent Price row
+                                    formatted_buy_payoff = buy_payoff_df.copy()
+                                    for col in formatted_buy_payoff.columns:
+                                        for idx in formatted_buy_payoff.index:
+                                            val = formatted_buy_payoff.at[idx, col]
+                                            if idx == "Brent Price":
+                                                # Format Brent prices with $ and 2 decimals
+                                                formatted_buy_payoff.at[idx, col] = f"${val:.2f}" if pd.notna(val) and val != 0 else "-"
+                                            else:
+                                                # Format payoffs with $ and comma
+                                                formatted_buy_payoff.at[idx, col] = f"${val:,.2f}" if pd.notna(val) and val != 0 else "$0.00"
+                                    
+                                    st.dataframe(formatted_buy_payoff, use_container_width=True)
+                                    
+                                    # Add total metric (exclude Brent Price and TOTAL rows)
+                                    total_buy_payoff = buy_payoff_df.iloc[1:-1].sum().sum()
+                                    st.metric("Total Buy Leg Payoff", f"${total_buy_payoff:,.2f}")
+                                else:
+                                    st.info("No buy leg trades found for payoff calculation")
+                                
+                                # DataFrame 5: Sell Leg Payoff
+                                st.subheader("Sell Leg Payoff - max(Strike - Brent, 0) × Position")
+                                
+                                sell_leg_df = monthly_itm_df[monthly_itm_df["Leg_Type"] == "Sell Leg"]
+                                
+                                if not sell_leg_df.empty:
+                                    # Create payoff matrix
+                                    sell_payoff_rows = []
+                                    
+                                    for strike in sorted(sell_leg_df["StrikePrice"].unique()):
+                                        row_data = {"Strike Price": strike}
+                                        
+                                        for month in sorted(sell_leg_df["Month"].unique()):
+                                            # Get position for this strike and month
+                                            position = sell_leg_df[
+                                                (sell_leg_df["StrikePrice"] == strike) & 
+                                                (sell_leg_df["Month"] == month)
+                                            ]["Monthly_Position_Quantity"].sum()
+                                            
+                                            # Get Brent price for this month
+                                            brent_price = brent_monthly_dict.get(month, None)
+                                            
+                                            # Calculate payoff: max(Brent - Strike, 0) × Position
+                                            if brent_price is not None and position > 0:
+                                                payoff = max(strike - brent_price, 0) * position
+                                            else:
+                                                payoff = 0
+                                            
+                                            row_data[month] = payoff
+                                        
+                                        sell_payoff_rows.append(row_data)
+                                    
+                                    sell_payoff_df = pd.DataFrame(sell_payoff_rows)
+                                    sell_payoff_df = sell_payoff_df.set_index("Strike Price")
+                                    
+                                    # Add Brent Price row
+                                    brent_price_row = {}
+                                    for month in sorted(sell_leg_df["Month"].unique()):
+                                        brent_price = brent_monthly_dict.get(month, None)
+                                        brent_price_row[month] = brent_price if brent_price is not None else 0
+                                    brent_price_series = pd.Series(brent_price_row, name="Brent Price")
+                                    
+                                    # Add Total row
+                                    total_row = sell_payoff_df.sum()
+                                    total_row.name = "TOTAL"
+                                    
+                                    # Combine: Brent Price, strikes, then TOTAL
+                                    sell_payoff_df = pd.concat([
+                                        brent_price_series.to_frame().T,
+                                        sell_payoff_df, 
+                                        total_row.to_frame().T
+                                    ])
+                                    
+                                    # Format numbers - different format for Brent Price row
+                                    formatted_sell_payoff = sell_payoff_df.copy()
+                                    for col in formatted_sell_payoff.columns:
+                                        for idx in formatted_sell_payoff.index:
+                                            val = formatted_sell_payoff.at[idx, col]
+                                            if idx == "Brent Price":
+                                                # Format Brent prices with $ and 2 decimals
+                                                formatted_sell_payoff.at[idx, col] = f"${val:.2f}" if pd.notna(val) and val != 0 else "-"
+                                            else:
+                                                # Format payoffs with $ and comma
+                                                formatted_sell_payoff.at[idx, col] = f"${val:,.2f}" if pd.notna(val) and val != 0 else "$0.00"
+                                    
+                                    st.dataframe(formatted_sell_payoff, use_container_width=True)
+                                    
+                                    # Add total metric (exclude Brent Price and TOTAL rows)
+                                    total_sell_payoff = sell_payoff_df.iloc[1:-1].sum().sum()
+                                    st.metric("Total Sell Leg Payoff", f"${total_sell_payoff:,.2f}")
+                                else:
+                                    st.info("No sell leg trades found for payoff calculation")
+                                
+                                # DataFrame 6: Net Payoff Summary
+                                st.markdown("---")
+                                st.subheader("Net Payoff Summary")
+                                
+                                # Get all unique months from both legs
+                                all_months_payoff = sorted(set(
+                                    list(buy_leg_df["Month"].unique() if not buy_leg_df.empty else []) +
+                                    list(sell_leg_df["Month"].unique() if not sell_leg_df.empty else [])
+                                ))
+                                
+                                if all_months_payoff:
+                                    summary_data = {
+                                        "Total Buy Leg": {},
+                                        "Total Sell Leg": {},
+                                        "Net Payoff": {}
+                                    }
+                                    
+                                    for month in all_months_payoff:
+                                        # Get buy leg payoff for this month (exclude Brent Price row)
+                                        buy_payoff_month = 0
+                                        if not buy_leg_df.empty and month in buy_payoff_df.columns:
+                                            buy_payoff_month = buy_payoff_df.iloc[1:-1][month].sum()  # Exclude Brent Price and TOTAL rows
+                                        
+                                        # Get sell leg payoff for this month (exclude Brent Price row)
+                                        sell_payoff_month = 0
+                                        if not sell_leg_df.empty and month in sell_payoff_df.columns:
+                                            sell_payoff_month = sell_payoff_df.iloc[1:-1][month].sum()  # Exclude Brent Price and TOTAL rows
+                                        
+                                        # Calculate net payoff
+                                        net_payoff_month = buy_payoff_month - sell_payoff_month
+                                        
+                                        summary_data["Total Buy Leg"][month] = buy_payoff_month
+                                        summary_data["Total Sell Leg"][month] = sell_payoff_month
+                                        summary_data["Net Payoff"][month] = net_payoff_month
+                                    
+                                    # Create summary dataframe
+                                    summary_df = pd.DataFrame(summary_data).T
+                                    
+                                    # Format numbers
+                                    formatted_summary = summary_df.copy()
+                                    for col in formatted_summary.columns:
+                                        for idx in formatted_summary.index:
+                                            val = formatted_summary.at[idx, col]
+                                            formatted_summary.at[idx, col] = f"${val:,.2f}" if pd.notna(val) else "$0.00"
+                                    
+                                    st.dataframe(formatted_summary, use_container_width=True)
+                                    
+                                    # Display total net payoff metric
+                                    total_net_payoff = summary_df.loc["Net Payoff"].sum()
+                                    st.metric("Total Net Payoff", f"${total_net_payoff:,.2f}")
+                                else:
+                                    st.info("No payoff data available for summary")
+                else:
+                    st.warning("No position data available to determine years")
+            else:
+                st.warning("No data available for ITM analysis")
+        else:
+            st.warning("Please select a portfolio from the sidebar")
     
-
-    # Add Page
-    pdf.add_page()
-
-    # Add lettterhead
-    create_letterhead(pdf, WIDTH)
-    create_title("MARK TO MARKET REPORT", pdf)
-
-    # Add dynamically generated image to the PDF
-    # Assuming image_bytes contains the bytes of the image generated by Plotly
+    # Tab 7: Raw Data
+    with tab7:
+        st.header(f"Raw Data View - {selected_portfolio}")
+        
+        if selected_portfolio:
+            # Filter by selected portfolio
+            filtered_df = df[df["PortfolioName"] == selected_portfolio].copy()
+            st.dataframe(filtered_df, use_container_width=True, height=600)
+            st.info(f"Total rows for {selected_portfolio}: {len(filtered_df):,}")
+        else:
+            st.dataframe(df, use_container_width=True, height=600)
+            st.info(f"Total rows: {len(df):,}")
     
-    pdf.image(r"Resources\Plots\Outstanding_FO.StrikePrice1.png", x=5, y=pdf.get_y(), w=100)
-    pdf.image(r"Resources\Plots\Outstanding_FO.StrikePrice2.png", x=105, y=pdf.get_y(), w=100)
-    pdf.image(r"Resources\Plots\upper_put_options.png", x=5, y=130, w=100)
+    # Tab 8: Export
+    with tab8:
+        st.header("Export Data")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.subheader("Download Cleaned Data")
+            csv = df.to_csv(index=False)
+            st.download_button(
+                label="📥 Download CSV",
+                data=csv,
+                file_name="portfolio_data_cleaned.csv",
+                mime="text/csv"
+            )
+        
+        with col2:
+            st.subheader("Download Summary")
+            summary_csv = summary.to_csv(index=False)
+            st.download_button(
+                label="📥 Download Summary CSV",
+                data=summary_csv,
+                file_name="portfolio_summary.csv",
+                mime="text/csv"
+            )
 
-    pdf.image(r"Resources\Plots\lower_put_options.png", x=105, y=130, w=100)
-
-    pdf.image(r"Resources\Plots\volume_active_1.png", x=5, y=180, w=100)
+else:
+    st.info("⏳ Loading data...")
     
-
-    # Generate the PDF and provide download link
-    pdf_output = pdf.output(dest="S").encode("latin-1")
-    html = create_download_link(pdf_output, "report")
-    st.markdown(html, unsafe_allow_html=True)
-
+    # Show example data structure
+    with st.expander("ℹ️ Expected Data Format"):
+        st.markdown("""
+        The API should return data with the following columns:
+        - `TradeNumber`
+        - `PortfolioName`
+        - `DealerID`
+        - `Acronym`
+        - `Position_Quantity`
+        - `BuyOrSell`
+        - `NetPremium`
+        - `CashflowUSD`
+        - `AbsNetPremium`
+        - `StrikePrice1`
+        - `StrikePrice2`
+        - `StartFixDate`
+        - `EndFixDate_MaturityDate`
+        """)
