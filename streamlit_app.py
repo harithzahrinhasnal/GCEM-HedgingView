@@ -96,9 +96,9 @@ else:
 # Helper function
 def format_volume(val):
     if abs(val) >= 1_000_000:
-        return f"{val/1_000_000:.1f}M"
+        return f"{val/1_000_000:.2f}M"
     elif abs(val) >= 1_000:
-        return f"{val/1_000:.1f}k"
+        return f"{val/1_000:.2f}k"
     else:
         return f"{val:.0f}"
 
