@@ -1011,7 +1011,7 @@ if st.session_state.df is not None:
                 # Reorder columns: base columns, then monthly quantities, then USD columns
                 base_cols = ["TradeNumber", "Portfolio", "TradeDate", "Settlement_DeliveryDate", 
                             "StrikePrice1", "StrikePrice2", "NetPremium", "AbsNetPremium", "BuyOrSell",
-                            "Position_Quantity", "DealerID", "OptionTypeLabel", "StripTypeLabel",
+                            "Position_Quantity","CounterpartyName", "DealerID", "OptionTypeLabel", "StripTypeLabel",
                             "StartFixDate", "EndFixDate", "Strip"]
                 
                 # Get columns that exist in the dataframe
