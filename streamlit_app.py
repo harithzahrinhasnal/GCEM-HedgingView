@@ -719,6 +719,7 @@ if st.session_state.df is not None:
                 "AbsNetPremium",
                 "BuyOrSell",
                 "Position_Quantity",
+                "CounterpartyName",
                 "DealerID",
                 "OptionTypeLabel",
                 "StripTypeLabel",
